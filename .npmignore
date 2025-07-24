@@ -1,0 +1,40 @@
+# Código fuente
+src/
+*.ts
+!*.d.ts
+
+# Configuración de desarrollo
+tsconfig.json
+jest.config.js
+.vscode/
+.idea/
+
+# Tests
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+__tests__/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencias
+node_modules/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# Ejemplos (opcional, puedes incluirlos si quieres)
+flows/
+examples/
+
+# Otros
+.DS_Store
+Thumbs.db

@@ -1,0 +1,226 @@
+{
+    "name": "flujo-complex",
+    "middlewares": [
+        {
+            "type": "mapper",
+            "name": "InputMapper",
+            "options": {
+                "output": false,
+                "mapping": [
+                    {
+                        "origin": "body",
+                        "from": "amount",
+                        "to": "transactionAmount"
+                    },
+                    {
+                        "origin": "body",
+                        "from": "type",
+                        "to": "transactionType"
+                    },
+                    {
+                        "origin": "body",
+                        "from": "userId",
+                        "to": "userId"
+                    }
+                ]
+            }
+        },
+        {
+            "sequence": [
+                {
+                    "parallel": [
+                        {
+                            "type": "mapper",
+                            "name": "UserValidation",
+                            "options": {
+                                "output": false,
+                                "mapping": [
+                                    {
+                                        "fn": "mockValue({{InputMapper.userId}}, 'anonymous')",
+                                        "to": "validatedUser"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "mapper",
+                            "name": "AmountValidation",
+                            "options": {
+                                "output": false,
+                                "mapping": [
+                                    {
+                                        "fn": "mockValue({{InputMapper.transactionAmount}}, 0)",
+                                        "to": "validatedAmount"
+                                    },
+                                    {
+                                        "origin": "globals",
+                                        "from": "InputMapper.transactionAmount",
+                                        "to": "validatedAmountNum",
+                                        "dataType": "number"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "debug",
+                    "name": "DebugBeforeConditional",
+                    "options": {
+                        "point": "before-conditional-logic",
+                        "stopExecution": false
+                    }
+                },
+                {
+                    "conditional": {
+                        "condition": "{{AmountValidation.validatedAmountNum}} > 1000",
+                        "then": {
+                            "sequence": [
+                                {
+                                    "type": "mapper",
+                                    "name": "HighAmountProcess",
+                                    "options": {
+                                        "output": false,
+                                        "mapping": [
+                                            {
+                                                "fn": "setStatus('BLOCKED')",
+                                                "to": "riskStatus"
+                                            },
+                                            {
+                                                "fn": "mockPriority()",
+                                                "to": "priority"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "conditional": {
+                                        "condition": "{{InputMapper.transactionType}} == 'transfer'",
+                                        "then": {
+                                            "type": "mapper",
+                                            "name": "TransferValidation",
+                                            "options": {
+                                                "output": false,
+                                                "mapping": [
+                                                    {
+                                                        "value": "TRANSFER_BLOCKED",
+                                                        "to": "blockReason"
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "else": {
+                                            "type": "mapper",
+                                            "name": "PaymentValidation",
+                                            "options": {
+                                                "output": false,
+                                                "mapping": [
+                                                    {
+                                                        "value": "PAYMENT_BLOCKED",
+                                                        "to": "blockReason"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "else": {
+                            "parallel": [
+                                {
+                                    "type": "mapper",
+                                    "name": "LowAmountProcess",
+                                    "options": {
+                                        "output": false,
+                                        "mapping": [
+                                            {
+                                                "value": "ACCEPTED",
+                                                "to": "riskStatus"
+                                            },
+                                            {
+                                                "value": 0,
+                                                "to": "priority"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "type": "mapper",
+                                    "name": "FastTrackProcess",
+                                    "options": {
+                                        "output": false,
+                                        "mapping": [
+                                            {
+                                                "value": "FAST_TRACK",
+                                                "to": "processType"
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "type": "debug",
+            "name": "DebugPoint",
+            "options": {
+                "point": "after-sequence-before-final",
+                "stopExecution": false
+            }
+        },
+        {
+            "type": "mapper",
+            "name": "FinalResponse",
+            "options": {
+                "output": true,
+                "outputVariableName": "validationResult",
+                "mapping": [
+                    {
+                        "origin": "globals",
+                        "from": "UserValidation.validatedUser",
+                        "to": "userId"
+                    },
+                    {
+                        "origin": "globals",
+                        "from": "AmountValidation.validatedAmount",
+                        "to": "amount"
+                    },
+                    {
+                        "origin": "globals",
+                        "from": "InputMapper.transactionType",
+                        "to": "transactionType"
+                    },
+                    {
+                        "fn": "conditionalValue({{HighAmountProcess.riskStatus}}, {{LowAmountProcess.riskStatus}})",
+                        "to": "riskStatus"
+                    },
+                    {
+                        "fn": "conditionalValue({{HighAmountProcess.priority}}, {{LowAmountProcess.priority}})",
+                        "to": "priority"
+                    },
+                    {
+                        "fn": "conditionalValue({{TransferValidation.blockReason}}, {{PaymentValidation.blockReason}})",
+                        "to": "blockReason"
+                    },
+                    {
+                        "origin": "globals",
+                        "from": "FastTrackProcess.processType",
+                        "to": "processType"
+                    },
+                    {
+                        "fn": "getCurrentTimestamp()",
+                        "to": "processedAt"
+                    },
+                    {
+                        "value": "success",
+                        "to": "status"
+                    }
+                ]
+            }
+        }
+    ]
+}
