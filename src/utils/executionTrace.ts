@@ -25,7 +25,12 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
     
     // Función helper para formatear una entrada
     const formatEntry = (entry: any, level: number): string => {
-      const indent = '  '.repeat(level);
+      // Crear indentación con pipes para niveles anidados
+      let indent = '';
+      for (let i = 0; i < level; i++) {
+        indent += '|  ';
+      }
+      
       const statusIcon = entry.status === 'success' ? '✓' : entry.status === 'failed' ? '✗' : '⏳';
       const duration = entry.durationMs || entry.duration || 0;
       

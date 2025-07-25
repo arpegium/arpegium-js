@@ -167,7 +167,8 @@ async function executeParallelMiddleware(
       runSequenceMiddlewares,
       runConditionalMiddleware,
       parallelSpan, 
-      level + 1
+      level + 1,
+      parentName  // Pass parent name for proper trace hierarchy
     );
   } else if (isSequenceConfig(middleware)) {
     await runSequenceMiddlewares(
@@ -180,7 +181,8 @@ async function executeParallelMiddleware(
       runParallelMiddlewares,
       runConditionalMiddleware,
       parallelSpan, 
-      level + 1
+      level + 1,
+      parentName  // Pass parent name for proper trace hierarchy
     );
   } else if (isConditionalConfig(middleware)) {
     await runConditionalMiddleware(
