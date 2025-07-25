@@ -25,7 +25,7 @@ export function interpolate(template: any, context: any): any {
   }
 
   // Para interpolación parcial en strings (ej: "Bearer {{token}}")
-  return template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+  const result = template.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
     const keys = path.trim().split('.');
     let value = context;
     
@@ -37,10 +37,8 @@ export function interpolate(template: any, context: any): any {
       }
     }
     
-    if (value === undefined || value === null) {
-      return match;
-    }
-    
     return String(value);
   });
+  
+  return result;
 }

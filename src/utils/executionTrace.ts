@@ -75,8 +75,14 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
   return lines.join('\n');
 }
 
-export function printExecutionTrace(trace: any[], totalDuration?: number) {
-  console.log(buildExecutionTraceString(trace, totalDuration));
+export function printExecutionTrace(trace: any[], totalDuration?: number, logger?: any) {
+  const traceMessage = buildExecutionTraceString(trace, totalDuration);
+  if (logger?.info) {
+    logger.info({
+      message: "Execution Trace",
+      executionTrace: traceMessage
+    });
+  }
 }
 
 export interface ExecutionTraceEntry {

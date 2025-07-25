@@ -10,16 +10,25 @@ function getByPath(obj: any, path: string) {
 function setByPath(obj: any, path: string, value: any) {
   const keys = path.split('.');
   let curr = obj;
+  
+  // Navegamos hasta el penúltimo nivel, creando objetos si no existen
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
     const nextKey = keys[i + 1];
+    
+    // Si el siguiente key es un número, necesitamos un array
     if (!isNaN(Number(nextKey))) {
       if (!Array.isArray(curr[key])) curr[key] = [];
     } else {
-      if (!curr[key]) curr[key] = {};
+      // Si no existe o no es un objeto, lo creamos
+      if (!curr[key] || typeof curr[key] !== 'object' || Array.isArray(curr[key])) {
+        curr[key] = {};
+      }
     }
     curr = curr[key];
   }
+  
+  // Asignamos el valor al último key
   const lastKey = keys[keys.length - 1];
   if (Array.isArray(curr) && !isNaN(Number(lastKey))) {
     curr[Number(lastKey)] = value;
@@ -29,124 +38,84 @@ function setByPath(obj: any, path: string, value: any) {
 }
 
 // Helper para decidir la fuente de datos para cada item
-function resolveSource(origin: string | null, ctx: any) {
+function resolveSource(origin: string | undefined, ctx: any) {
+  if (!origin || origin === "body") return ctx.input?.body;
   if (origin === "input") return ctx.input;
   if (origin === "output") return ctx.output;
   if (origin === "globals") return ctx.globals;
-  if (["body", "headers", "pathParameters", "queryStringParameters", "resource"].includes(origin || "")) {
-    return origin ? ctx.input?.[origin as keyof typeof ctx.input] : undefined;
-  }
-  return (ctx.output && Object.keys(ctx.output).length > 0 ? ctx.output : ctx.input);
+  if (origin === "headers") return ctx.input?.headers;
+  if (origin === "pathParameters") return ctx.input?.pathParameters;
+  if (origin === "queryStringParameters") return ctx.input?.queryStringParameters;
+  
+  // Default fallback
+  return ctx.input?.body;
 }
 
 export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) => {
-  const options = mw.options || {};
-  const mapping = options.mapping || [];
   const result: any = {};
-
-  // Mejora el contexto de interpolación
-  const interpolationContext = {
-    ...ctx.globals, // Primero los globals para acceso a datos de otros middlewares
-    ...ctx.input,   // Luego el input completo
-    env: ctx.input?.env || process.env,
-    // Agrega propiedades del body para fácil acceso
-    ...(ctx.input?.body || {}),
-    // Agrega pathParameters para acceso directo
-    ...(ctx.input?.pathParameters || {}),
-    // Agregar referencia al contexto completo para funciones que lo necesiten
-    _ctx: ctx
-  };
+  
+  const mapping = mw.options?.mapping || mw;
 
   if (Array.isArray(mapping)) {
     for (const mapItem of mapping) {
-      let value;
+      try {
+        let value;
 
-      // Prioridad: fn > value > from
-      if (mapItem.fn) {
-        // Ejecutar función
-        const fnMatch = /^([a-zA-Z0-9_]+)(?:\((.*)\))?$/.exec(mapItem.fn.trim());
-        if (fnMatch) {
-          const fnName = fnMatch[1];
-          const fnArgsRaw = fnMatch[2];
-          const fn = tools?.functionRegistry?.[fnName];
-          if (fn) {
-            let args: any[] = [];
-            if (fnArgsRaw !== undefined) {
-              args = fnArgsRaw.split(",").map(arg => {
-                const trimmed = arg.trim();
-                // Usa el contexto mejorado para interpolación
-                const interpolated = interpolate(trimmed, interpolationContext);
-                if (interpolated === trimmed) {
-                  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        // Determine precedence: fn > value > from
+        if (mapItem.fn) {
+          // Parse function call: functionName(arg1, arg2, ...)
+          const fnMatch = /^([a-zA-Z0-9_]+)(?:\((.*)\))?$/.exec(mapItem.fn.trim());
+          if (fnMatch) {
+            const fnName = fnMatch[1];
+            const fnArgsRaw = fnMatch[2];
+            const fn = tools?.functionRegistry?.[fnName];
+            
+            if (fn) {
+              let args: any[] = [];
+              if (fnArgsRaw) {
+                // Simple argument parsing - split by comma and trim
+                args = fnArgsRaw.split(',').map(arg => {
+                  const trimmed = arg.trim();
+                  // Remove quotes if present
+                  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+                      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
                     return trimmed.slice(1, -1);
                   }
-                  if (!isNaN(Number(trimmed))) {
+                  // Try to parse as number only for reasonable sized numbers
+                  if (!isNaN(Number(trimmed)) && trimmed.length < 10) {
                     return Number(trimmed);
                   }
-                  if (trimmed === "true") return true;
-                  if (trimmed === "false") return false;
-                }
-                return interpolated;
-              });
+                  // For long numbers (like PAN), keep as string
+                  return trimmed;
+                });
+              }
+              
+              value = fn(...args);
+            } else {
+              tools?.logger?.error(`Function ${fnName} not found in functionRegistry`);
+              value = undefined; // Return undefined when function not found
             }
-            if (args.length === 0) {
-              // Para funciones sin argumentos, no agregar parámetros adicionales
-              args = [];
-            }
-            value = fn(...args);
-          }
-        }
-      } else if (mapItem.value !== undefined) {
-        // Usar valor literal
-        value = mapItem.value;
-      } else if (mapItem.from) {
-        // Mapear desde origen
-        if (mapItem.origin === "body" && ctx.input?.body) {
-          value = getByPath(ctx.input.body, mapItem.from);
-        } else if (mapItem.origin === "headers" && ctx.input?.headers) {
-          value = getByPath(ctx.input.headers, mapItem.from);
-        } else if (mapItem.origin === "pathParameters" && ctx.input?.pathParameters) {
-          value = getByPath(ctx.input.pathParameters, mapItem.from);
-        } else if (mapItem.origin === "queryStringParameters" && ctx.input?.queryStringParameters) {
-          value = getByPath(ctx.input.queryStringParameters, mapItem.from);
-        } else if (mapItem.from === "*" && mapItem.origin === "body") {
-          value = ctx.input?.body;
-        } else if (mapItem.origin === "globals" && ctx.globals) {
-          value = getByPath(ctx.globals, mapItem.from);
-        } else {
-          // Buscar en globals por defecto
-          value = getByPath(ctx.globals, mapItem.from);
-        }
-      }
-
-      if (value !== undefined && value !== null) {
-        // Soporte para dataType
-        const dataType = mapItem.dataType || "string";
-        if (dataType === "number") value = Number(value);
-        else if (dataType === "boolean") value = value === "true" || value === true;
-        else if (dataType === "string") {
-          if (mapItem.forceString === true) {
-            value = JSON.stringify(value);
-          } else if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
-            // Keep objects and arrays as-is for non-string types
           } else {
-            value = String(value);
+            // Fallback to interpolation for complex expressions
+            value = await interpolate(mapItem.fn, ctx);
+          }
+        } else if (mapItem.hasOwnProperty('value')) {
+          value = mapItem.value;
+        } else if (mapItem.from) {
+          // Check for wildcard "*" to copy entire object
+          if (mapItem.from === '*') {
+            value = resolveSource(mapItem.origin, ctx);
+          } else {
+            const sourceData = resolveSource(mapItem.origin, ctx);
+            value = getByPath(sourceData, mapItem.from);
           }
         }
-        else if (dataType === "array") {
-          if (typeof value === "string" && value.trim().startsWith("[") && value.trim().endsWith("]")) {
-            try {
-              value = JSON.parse(value);
-            } catch {
-              value = [value];
-            }
-          }
-          if (!Array.isArray(value)) value = [value];
+
+        if (value !== undefined) {
+          setByPath(result, mapItem.to, value);
         }
-      }
-      
-      if (mapItem.to) {
-        setByPath(result, mapItem.to, value);
+      } catch (error) {
+        tools?.logger?.error(`Error processing mapping item: ${error}`);
       }
     }
   } else {
@@ -161,24 +130,36 @@ export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) =>
         const fn = tools?.functionRegistry?.[(to as any).fn];
         if (fn) {
           value = fn(value, ctx);
+        } else {
+          tools?.logger?.error(`Function ${(to as any).fn} not found in functionRegistry`);
+          value = undefined; // Return undefined when function not found
         }
       }
       
-      setByPath(result, typeof to === "string" ? to : (to as any).path, value);
+      if (value !== undefined) {
+        result[to as string] = value;
+      }
     }
   }
 
-  // Guardar el resultado en globals si el middleware tiene nombre
-  if (mw.name) {
-    ctx.globals = ctx.globals || {};
-    ctx.globals[mw.name] = result;
+  // Check if this mapper should be the final output (explicit true required)
+  const isOutputMapper = mw.options?.output === true;
+
+  // Set result as output or globals
+  if (Object.keys(result).length > 0) {
+    if (isOutputMapper) {
+      // Replace entire output with just this mapper's result
+      ctx.output = result;
+    } else {
+      // Only add to globals, don't modify output
+      if (mw.name) {
+        ctx.globals[mw.name] = result;
+      }
+    }
   }
 
-  // Determinar si debe ser output
-  const shouldOutput = options.output !== false;
-  if (shouldOutput) {
-    ctx.output = result;
-  }
+  const hasResultOutput = Object.keys(result).length > 0;
+  const resultOutputKeys = hasResultOutput ? Object.keys(result) : [];
 
   return { ctx, status: "success" };
 });

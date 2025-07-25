@@ -79,7 +79,7 @@ describe('Orchestrator - Integration Tests', () => {
 
       const result = await orchestrator.runFlow(flow, input, tools);
 
-      expect(result.finalAmount).toBe("1500");
+      expect(result.finalAmount).toBe(1500);
       expect(result.status).toBe("PROCESSED");
     });
   });

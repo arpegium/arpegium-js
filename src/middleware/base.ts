@@ -21,6 +21,11 @@ export const createMiddleware = (
         result = { ctx: result || ctx, status: "success" } as MiddlewareResult;
       }
     } catch (error) {
+      tools?.logger?.error({
+        message: `Middleware execution failed: ${mw.name || mw.type}`,
+        middleware: { name: mw.name, type: mw.type },
+        error: error instanceof Error ? error.message : String(error)
+      });
       result = { ctx, status: "failed", error } as MiddlewareResult;
     }
     const mwEnd = Date.now();

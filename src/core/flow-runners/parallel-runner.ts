@@ -7,7 +7,7 @@
 
 import { MiddlewareContext, ITools } from '../types';
 import { runSingleMiddleware } from './middleware-runner';
-import { isParallelConfig, isConditionalConfig } from '../utils/flow-detector';
+import { isParallelConfig, isConditionalConfig, isSequenceConfig } from '../utils/flow-detector';
 
 /**
  * Executes middlewares in parallel and merges results
@@ -17,9 +17,11 @@ import { isParallelConfig, isConditionalConfig } from '../utils/flow-detector';
  * @param tools Execution tools
  * @param traceWithObservabilityFn Tracing function
  * @param runMiddlewares Function to run nested middleware arrays
+ * @param runSequenceMiddlewares Function to run sequence middlewares
  * @param runConditionalMiddleware Function to run conditional middlewares
  * @param parentSpan Parent span for tracing
  * @param level Execution level
+ * @param parentName Parent trace entry name for hierarchical display
  * @returns Updated context with merged parallel execution results
  */
 export async function runParallelMiddlewares(
@@ -29,17 +31,34 @@ export async function runParallelMiddlewares(
   tools: ITools,
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
+  runSequenceMiddlewares: Function,
   runConditionalMiddleware: Function,
   parentSpan?: any,
-  level: number = 0
+  level: number = 0,
+  parentName?: string
 ): Promise<MiddlewareContext> {
   const blockStart = Date.now();
-  const parallelTraces: any[] = [];
   const parallelGlobals: any[] = [];
+  const executionTrace = (ctx as any)._executionTrace;
   
   return await traceWithObservabilityFn(
     'parallel-block',
     async (parallelSpan: any) => {
+      // Add parallel block entry to execution trace
+      let traceEntry: any = null;
+      if (executionTrace) {
+        traceEntry = executionTrace.addEntry({
+          name: `parallel-${Date.now()}`,
+          type: 'parallel',
+          status: 'running',
+          parent: parentName,  // Use parentName parameter
+          isControl: true,
+          startedAt: blockStart
+        });
+        // Update context array to reflect changes
+        ctx.executionTrace = executionTrace.getTrace();
+      }
+
       // Execute all middlewares concurrently
       await Promise.all(
         middlewares.map(async (middleware) => {
@@ -54,13 +73,15 @@ export async function runParallelMiddlewares(
             tools,
             traceWithObservabilityFn,
             runMiddlewares,
+            runSequenceMiddlewares,
             runConditionalMiddleware,
             parallelSpan,
-            level
+            level,
+            traceEntry?.name  // Pass parallel block name as parent
           );
           
           // Collect results from parallel execution
-          parallelTraces.push(...(tempCtx.executionTrace || []));
+          // Note: Execution trace is now handled by _executionTrace system
           parallelGlobals.push(tempCtx.globals);
           
           // Preserve output if exists
@@ -73,8 +94,17 @@ export async function runParallelMiddlewares(
       // Add parallel block trace
       addParallelTrace(ctx, blockStart, level);
       
+      // Update parallel trace entry to success
+      if (executionTrace && traceEntry) {
+        executionTrace.updateEntry(traceEntry.name, {
+          status: 'success',
+          endedAt: Date.now()
+        });
+        ctx.executionTrace = executionTrace.getTrace();
+      }
+      
       // Merge parallel execution results
-      mergeParallelResults(ctx, parallelTraces, parallelGlobals);
+      mergeParallelResults(ctx, parallelGlobals);
       
       return ctx;
     },
@@ -88,11 +118,11 @@ export async function runParallelMiddlewares(
  * @returns Isolated context copy
  */
 function createIsolatedContext(ctx: MiddlewareContext): MiddlewareContext {
-  return { 
+  return {
     ...ctx, 
     globals: { ...ctx.globals },
-    executionTrace: [],
-    // Copy execution trace reference
+    // Don't override executionTrace, let the middleware-runner handle it
+    // Copy execution trace reference to ensure continuity
     ...(ctx as any)._executionTrace && { _executionTrace: (ctx as any)._executionTrace }
   };
 }
@@ -105,9 +135,11 @@ function createIsolatedContext(ctx: MiddlewareContext): MiddlewareContext {
  * @param tools Execution tools
  * @param traceWithObservabilityFn Tracing function
  * @param runMiddlewares Function to run middleware arrays
+ * @param runSequenceMiddlewares Function to run sequence middlewares
  * @param runConditionalMiddleware Function to run conditionals
  * @param parallelSpan Parent span
  * @param level Execution level
+ * @param parentName Name of parent parallel block
  */
 async function executeParallelMiddleware(
   middleware: any,
@@ -116,9 +148,11 @@ async function executeParallelMiddleware(
   tools: ITools,
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
+  runSequenceMiddlewares: Function,
   runConditionalMiddleware: Function,
   parallelSpan: any,
-  level: number
+  level: number,
+  parentName?: string
 ): Promise<void> {
   if (Array.isArray(middleware)) {
     await runMiddlewares(middleware, tempCtx, tools, parallelSpan, false, level + 1);
@@ -130,12 +164,34 @@ async function executeParallelMiddleware(
       tools, 
       traceWithObservabilityFn,
       runMiddlewares,
+      runSequenceMiddlewares,
+      runConditionalMiddleware,
+      parallelSpan, 
+      level + 1
+    );
+  } else if (isSequenceConfig(middleware)) {
+    await runSequenceMiddlewares(
+      middleware.sequence, 
+      tempCtx, 
+      registeredMiddlewares,
+      tools, 
+      traceWithObservabilityFn,
+      runMiddlewares,
+      runParallelMiddlewares,
       runConditionalMiddleware,
       parallelSpan, 
       level + 1
     );
   } else if (isConditionalConfig(middleware)) {
-    await runConditionalMiddleware(middleware.conditional, tempCtx, tools, parallelSpan, level + 1);
+    await runConditionalMiddleware(
+      middleware.conditional,
+      tempCtx,
+      tools,
+      traceWithObservabilityFn,
+      runMiddlewares,
+      parallelSpan,
+      level + 1
+    );
   } else {
     const result = await runSingleMiddleware(
       middleware, 
@@ -145,7 +201,7 @@ async function executeParallelMiddleware(
       traceWithObservabilityFn,
       parallelSpan, 
       level + 1, 
-      "parallel"
+      parentName  // Pass parent parallel block name
     );
     // Update context with middleware result
     Object.assign(tempCtx, result.ctx);
@@ -159,32 +215,20 @@ async function executeParallelMiddleware(
  * @param level Execution level
  */
 function addParallelTrace(ctx: MiddlewareContext, blockStart: number, level: number): void {
-  if (ctx.executionTrace) {
-    ctx.executionTrace.push({
-      type: 'parallel',
-      start: blockStart,
-      end: Date.now(),
-      duration: Date.now() - blockStart,
-      level
-    });
-  }
+  // Note: Execution trace is now handled by _executionTrace system
+  // The parallel structure timing is managed at a higher level
 }
 
 /**
  * Merges results from parallel executions into main context
  * @param ctx Main context to update
- * @param parallelTraces Collected traces from parallel executions
  * @param parallelGlobals Collected globals from parallel executions
  */
 function mergeParallelResults(
   ctx: MiddlewareContext, 
-  parallelTraces: any[], 
   parallelGlobals: any[]
 ): void {
-  // Merge all parallel traces
-  if (ctx.executionTrace) {
-    ctx.executionTrace.push(...parallelTraces);
-  }
+  // Note: Execution traces are now managed by _executionTrace system
 
   // Merge globals from all parallel executions
   for (const globals of parallelGlobals) {

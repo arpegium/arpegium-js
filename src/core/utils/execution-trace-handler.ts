@@ -73,7 +73,7 @@ async function logExecutionTrace(executionTrace: any[], tools: ITools): Promise<
       executionTrace: traceMessage
     });
   } catch (error) {
-    console.error('Error logging execution trace:', error);
+    // Silent fail - execution trace is not critical
   }
 }
 

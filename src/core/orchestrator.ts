@@ -66,7 +66,11 @@ export class Orchestrator {
       ctx = await this.runMiddlewares(flow.middlewares, ctx, tools, null, true, 0);
       return ctx;
     } catch (error) {
-      console.error('Error executing orchestrator:', error);
+      tools?.logger?.error({
+        message: 'Error executing orchestrator',
+        error: error instanceof Error ? error.message : String(error),
+        flow: flow.name
+      });
       throw error;
     }
   }
@@ -92,10 +96,13 @@ export class Orchestrator {
           tools, 
           this.traceWithObservabilityFn,
           this.runMiddlewares.bind(this),
-          (conditional: any, ctx: MiddlewareContext, tools: ITools, parentSpan?: any, level?: number) => 
+          (sequence: any[], ctx: MiddlewareContext, registeredMiddlewares: Map<string, any>, tools: ITools, traceWithObservabilityFn: any, runMiddlewares: Function, runParallelMiddlewares: Function, runConditionalMiddleware: Function, parentSpan?: any, level?: number, parentName?: string) => 
+            runSequenceMiddlewares(sequence, ctx, this.middlewares, tools, this.traceWithObservabilityFn, this.runMiddlewares.bind(this), runParallelMiddlewares, runConditionalMiddleware, parentSpan, level, parentName),
+          (conditional: any, ctx: MiddlewareContext, tools: ITools, traceWithObservabilityFn: any, runMiddlewares: Function, parentSpan?: any, level?: number) => 
             runConditionalMiddleware(conditional, ctx, tools, this.traceWithObservabilityFn, this.runMiddlewares.bind(this), parentSpan, level),
           parentSpan, 
-          level + 1
+          level + 1,
+          undefined  // No parent for root level parallel
         );
       } else if (isSequenceConfig(mwConfig)) {
         // Nueva sintaxis: { sequence: [...] }
@@ -106,10 +113,13 @@ export class Orchestrator {
           tools, 
           this.traceWithObservabilityFn,
           this.runMiddlewares.bind(this),
-          (conditional: any, ctx: MiddlewareContext, tools: ITools, parentSpan?: any, level?: number) => 
+          (parallel: any[], ctx: MiddlewareContext, registeredMiddlewares: Map<string, any>, tools: ITools, traceWithObservabilityFn: any, runMiddlewares: Function, runSequenceMiddlewares: Function, runConditionalMiddleware: Function, parentSpan?: any, level?: number, parentName?: string) => 
+            runParallelMiddlewares(parallel, ctx, this.middlewares, tools, this.traceWithObservabilityFn, this.runMiddlewares.bind(this), runSequenceMiddlewares, runConditionalMiddleware, parentSpan, level, parentName),
+          (conditional: any, ctx: MiddlewareContext, tools: ITools, traceWithObservabilityFn: any, runMiddlewares: Function, parentSpan?: any, level?: number) => 
             runConditionalMiddleware(conditional, ctx, tools, this.traceWithObservabilityFn, this.runMiddlewares.bind(this), parentSpan, level),
           parentSpan, 
-          level + 1
+          level + 1,
+          undefined  // No parent for root level sequence
         );
       } else if (isConditionalConfig(mwConfig)) {
         // Nueva sintaxis: { conditional: {...} }

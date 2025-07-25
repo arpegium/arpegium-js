@@ -7,7 +7,7 @@
 
 import { MiddlewareContext, ITools } from '../types';
 import { runSingleMiddleware } from './middleware-runner';
-import { isParallelConfig, isConditionalConfig } from '../utils/flow-detector';
+import { isParallelConfig, isConditionalConfig, isSequenceConfig } from '../utils/flow-detector';
 import { runParallelMiddlewares } from './parallel-runner';
 
 /**
@@ -18,9 +18,11 @@ import { runParallelMiddlewares } from './parallel-runner';
  * @param tools Execution tools
  * @param traceWithObservabilityFn Tracing function
  * @param runMiddlewares Function to run nested middleware arrays
+ * @param runParallelMiddlewares Function to run parallel middlewares
  * @param runConditionalMiddleware Function to run conditional middlewares
  * @param parentSpan Parent span for tracing
  * @param level Execution level
+ * @param parentName Parent trace entry name for hierarchical display
  * @returns Updated context after sequential execution
  */
 export async function runSequenceMiddlewares(
@@ -30,15 +32,33 @@ export async function runSequenceMiddlewares(
   tools: ITools,
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
+  runParallelMiddlewares: Function,
   runConditionalMiddleware: Function,
   parentSpan?: any,
-  level: number = 0
+  level: number = 0,
+  parentName?: string
 ): Promise<MiddlewareContext> {
   const blockStart = Date.now();
+  const executionTrace = (ctx as any)._executionTrace;
   
   return await traceWithObservabilityFn(
     'sequence-block',
     async (sequenceSpan: any) => {
+      // Add sequence block entry to execution trace
+      let traceEntry: any = null;
+      if (executionTrace) {
+        traceEntry = executionTrace.addEntry({
+          name: `sequence-${Date.now()}`,
+          type: 'sequence',
+          status: 'running',
+          parent: parentName,  // Use parentName parameter
+          isControl: true,
+          startedAt: blockStart
+        });
+        // Update context array to reflect changes
+        ctx.executionTrace = executionTrace.getTrace();
+      }
+
       // Execute middlewares one by one
       for (const middleware of middlewares) {
         await executeSequentialMiddleware(
@@ -48,10 +68,21 @@ export async function runSequenceMiddlewares(
           tools,
           traceWithObservabilityFn,
           runMiddlewares,
+          runParallelMiddlewares,
           runConditionalMiddleware,
           sequenceSpan,
-          level
+          level,
+          traceEntry?.name  // Pass sequence block name as parent
         );
+      }
+
+      // Mark sequence block as completed
+      if (executionTrace && traceEntry) {
+        traceEntry.status = 'completed';
+        traceEntry.endedAt = Date.now();
+        traceEntry.duration = traceEntry.endedAt - traceEntry.startedAt;
+        // Update context array to reflect changes
+        ctx.executionTrace = executionTrace.getTrace();
       }
       
       // Add sequence block trace
@@ -71,9 +102,11 @@ export async function runSequenceMiddlewares(
  * @param tools Execution tools
  * @param traceWithObservabilityFn Tracing function
  * @param runMiddlewares Function to run middleware arrays
+ * @param runParallelMiddlewares Function to run parallel middlewares
  * @param runConditionalMiddleware Function to run conditionals
  * @param sequenceSpan Parent span
  * @param level Execution level
+ * @param parentName Parent trace entry name for hierarchical display
  */
 async function executeSequentialMiddleware(
   middleware: any,
@@ -82,9 +115,11 @@ async function executeSequentialMiddleware(
   tools: ITools,
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
+  runParallelMiddlewares: Function,
   runConditionalMiddleware: Function,
   sequenceSpan: any,
-  level: number
+  level: number,
+  parentName?: string
 ): Promise<void> {
   if (Array.isArray(middleware)) {
     // Execute nested middleware array sequentially
@@ -98,13 +133,37 @@ async function executeSequentialMiddleware(
       tools, 
       traceWithObservabilityFn,
       runMiddlewares,
+      runParallelMiddlewares,
+      runConditionalMiddleware,
+      sequenceSpan, 
+      level + 1,
+      parentName  // Pass sequence block name as parent
+    );
+  } else if (isSequenceConfig(middleware)) {
+    // Execute nested sequence block within sequence
+    await runSequenceMiddlewares(
+      middleware.sequence, 
+      ctx, 
+      registeredMiddlewares,
+      tools, 
+      traceWithObservabilityFn,
+      runMiddlewares,
+      runParallelMiddlewares,
       runConditionalMiddleware,
       sequenceSpan, 
       level + 1
     );
   } else if (isConditionalConfig(middleware)) {
     // Execute conditional block within sequence
-    await runConditionalMiddleware(middleware.conditional, ctx, tools, sequenceSpan, level + 1);
+    await runConditionalMiddleware(
+      middleware.conditional, 
+      ctx, 
+      tools, 
+      traceWithObservabilityFn,
+      runMiddlewares,
+      sequenceSpan, 
+      level + 1
+    );
   } else {
     // Execute single middleware and update context
     const result = await runSingleMiddleware(
@@ -115,7 +174,7 @@ async function executeSequentialMiddleware(
       traceWithObservabilityFn,
       sequenceSpan, 
       level + 1, 
-      "sequential"
+      parentName  // Pass parent name for hierarchical trace
     );
     
     // Update context with middleware result (in-place update for sequence)
@@ -137,11 +196,7 @@ function updateContextInPlace(ctx: MiddlewareContext, updatedCtx: MiddlewareCont
     ctx.output = { ...ctx.output, ...updatedCtx.output };
   }
   
-  // Update execution trace
-  if (updatedCtx.executionTrace && ctx.executionTrace) {
-    ctx.executionTrace.push(...updatedCtx.executionTrace);
-  }
-  
+  // Note: Execution trace is now handled by _executionTrace system
   // Update any other properties that might have been modified
   Object.keys(updatedCtx).forEach(key => {
     if (key !== 'globals' && key !== 'output' && key !== 'executionTrace') {
@@ -151,21 +206,14 @@ function updateContextInPlace(ctx: MiddlewareContext, updatedCtx: MiddlewareCont
 }
 
 /**
- * Adds sequence block execution trace
- * @param ctx Context to update
+ * Adds sequence execution trace to context
+ * @param ctx Execution context
  * @param blockStart Start time
  * @param level Execution level
  */
 function addSequenceTrace(ctx: MiddlewareContext, blockStart: number, level: number): void {
-  if (ctx.executionTrace) {
-    ctx.executionTrace.push({
-      type: 'sequence',
-      start: blockStart,
-      end: Date.now(),
-      duration: Date.now() - blockStart,
-      level
-    });
-  }
+  // Note: Execution trace is now handled by _executionTrace system
+  // The sequence structure timing is managed at a higher level
 }
 
 /**
@@ -177,6 +225,7 @@ function addSequenceTrace(ctx: MiddlewareContext, blockStart: number, level: num
  * @param tools Execution tools
  * @param traceWithObservabilityFn Tracing function
  * @param runMiddlewares Main middleware runner function
+ * @param runParallelMiddlewares Parallel runner function
  * @param runConditionalMiddleware Conditional runner function
  * @param parentSpan Parent tracing span
  * @param level Execution level
@@ -189,6 +238,7 @@ export async function runMiddlewareArrayInSequence(
   tools: ITools,
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
+  runParallelMiddlewares: Function,
   runConditionalMiddleware: Function,
   parentSpan?: any,
   level: number = 0
@@ -202,6 +252,7 @@ export async function runMiddlewareArrayInSequence(
       tools,
       traceWithObservabilityFn,
       runMiddlewares,
+      runParallelMiddlewares,
       runConditionalMiddleware,
       parentSpan,
       level

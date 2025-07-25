@@ -1,11 +1,11 @@
-# OrchestJS
+# Arpegium JS
 
 A generic, extensible orchestrator framework for creating JSON-defined workflows with middleware-based processing.
 
 ## Installation
 
 ```bash
-npm install orchestjs
+npm install arpegium-js
 ```
 
 ## Table of Contents
@@ -40,7 +40,7 @@ The Orchestrator Framework allows you to define complex business workflows using
 ## Quick Start
 
 ```typescript
-import { Orchestrator } from 'orchestjs';
+import { Orchestrator } from 'arpegium-js';
 
 // Create orchestrator instance
 const orchestrator = new Orchestrator();
@@ -147,7 +147,7 @@ Makes HTTP requests with interpolation support.
 
 ## Flow Control
 
-OrchestJS provides powerful flow control mechanisms to handle complex business logic:
+Arpegium JS provides powerful flow control mechanisms to handle complex business logic:
 
 ### Sequential Execution
 Use the `sequence` block for sequential execution:
@@ -378,7 +378,7 @@ Combining all flow control mechanisms:
 
 ### Conditional Logic
 
-OrchestJS supports complex conditional expressions:
+Arpegium JS supports complex conditional expressions:
 
 #### Comparison Operators
 - **Numeric**: `>`, `>=`, `<`, `<=`, `==`, `!=`
@@ -543,7 +543,7 @@ const functionRegistry = {
 Here's a complete example showing how to use custom functions in a real workflow:
 
 ```typescript
-import { Orchestrator } from 'orchestjs';
+import { Orchestrator } from 'arpegium-js';
 
 // 1. Define your function registry
 const functionRegistry = {
@@ -692,7 +692,7 @@ This will log the current context state and optionally stop execution for debugg
 ### Basic Middleware Structure
 
 ```typescript
-import { createMiddleware } from 'orchestjs';
+import { createMiddleware } from 'arpegium-js';
 
 export const myCustomMiddleware = createMiddleware(async (ctx, mw, tools, span) => {
   // Access middleware options
@@ -738,8 +738,8 @@ export const myCustomMiddleware = createMiddleware(async (ctx, mw, tools, span) 
 ### Advanced Middleware with HTTP Requests
 
 ```typescript
-import { createMiddleware } from 'orchestjs';
-import { interpolate } from 'orchestjs';
+import { createMiddleware } from 'arpegium-js';
+import { interpolate } from 'arpegium-js';
 
 export const apiClientMiddleware = createMiddleware(async (ctx, mw, tools) => {
   const options = mw.options || {};

@@ -41,7 +41,7 @@ export function isSequenceConfig(config: any): boolean {
  */
 export function isConditionalConfig(config: any): boolean {
   return config && typeof config === 'object' && config.conditional && 
-         (config.conditional.condition || config.conditional.conditions);
+         (config.conditional.condition || config.conditional.conditions || config.conditional.if);
 }
 
 /**

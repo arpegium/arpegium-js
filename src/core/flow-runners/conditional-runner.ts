@@ -37,11 +37,28 @@ export async function runConditionalMiddleware(
   return await traceWithObservabilityFn(
     'conditional-block',
     async (conditionalSpan: any) => {
+      const executionTrace = (ctx as any)._executionTrace;
+      
+      // Add conditional block entry to execution trace
+      let traceEntry: any = null;
+      if (executionTrace) {
+        traceEntry = executionTrace.addEntry({
+          name: `conditional-${Date.now()}`,
+          type: 'conditional',
+          status: 'running',
+          parent: null,
+          isControl: true,
+          startedAt: blockStart
+        });
+        // Update context array to reflect changes
+        ctx.executionTrace = executionTrace.getTrace();
+      }
+
       // Evaluate the condition
       const conditionEvaluation = await evaluateConditionalExpression(
         conditionalConfig, 
-        ctx, 
-        conditionalSpan
+        ctx,
+        tools
       );
       
       conditionResult = conditionEvaluation.result;
@@ -50,10 +67,32 @@ export async function runConditionalMiddleware(
       // Execute appropriate branch based on condition result
       if (conditionResult && conditionalConfig.then) {
         executedBranch = 'then';
-        await runMiddlewares(conditionalConfig.then, ctx, tools, conditionalSpan, false, level + 1);
+        // Handle then branch - could be single middleware or array
+        if (Array.isArray(conditionalConfig.then)) {
+          await runMiddlewares(conditionalConfig.then, ctx, tools, conditionalSpan, false, level + 1);
+        } else {
+          await runMiddlewares([conditionalConfig.then], ctx, tools, conditionalSpan, false, level + 1);
+        }
       } else if (!conditionResult && conditionalConfig.else) {
         executedBranch = 'else';
-        await runMiddlewares(conditionalConfig.else, ctx, tools, conditionalSpan, false, level + 1);
+        // Handle else branch - could be single middleware or array
+        if (Array.isArray(conditionalConfig.else)) {
+          await runMiddlewares(conditionalConfig.else, ctx, tools, conditionalSpan, false, level + 1);
+        } else {
+          await runMiddlewares([conditionalConfig.else], ctx, tools, conditionalSpan, false, level + 1);
+        }
+      }
+
+      // Mark conditional block as completed
+      if (executionTrace && traceEntry) {
+        traceEntry.status = 'completed';
+        traceEntry.endedAt = Date.now();
+        traceEntry.duration = traceEntry.endedAt - traceEntry.startedAt;
+        traceEntry.condition = evaluatedCondition;
+        traceEntry.conditionResult = conditionResult;
+        traceEntry.executedBranch = executedBranch;
+        // Update context array to reflect changes
+        ctx.executionTrace = executionTrace.getTrace();
       }
       
       // Add conditional execution trace
@@ -76,26 +115,28 @@ export async function runConditionalMiddleware(
  * Evaluates the conditional expression
  * @param conditionalConfig Configuration containing the condition
  * @param ctx Execution context for variable interpolation
- * @param span Tracing span
  * @returns Object with evaluation result and interpolated expression
  */
 async function evaluateConditionalExpression(
   conditionalConfig: any, 
-  ctx: MiddlewareContext, 
-  span?: any
+  ctx: MiddlewareContext,
+  tools?: any
 ): Promise<{ result: boolean; expression: string }> {
   try {
+    // Support both 'if' and 'condition' fields
+    const conditionField = conditionalConfig.if || conditionalConfig.condition;
+    
     // Interpolate variables in the condition string
-    const interpolatedCondition = deepInterpolate(conditionalConfig.if, ctx);
+    const interpolatedCondition = deepInterpolate(conditionField, ctx);
     
     // Evaluate the condition
     const conditionResult = evaluateCondition(interpolatedCondition);
     
-    // Add evaluation trace if span exists
-    if (span && ctx.executionTrace) {
+    // Add evaluation trace
+    if (ctx.executionTrace) {
       ctx.executionTrace.push({
         type: 'condition-evaluation',
-        condition: conditionalConfig.if,
+        condition: conditionField,
         interpolated: interpolatedCondition,
         result: conditionResult,
         timestamp: Date.now()
@@ -107,22 +148,29 @@ async function evaluateConditionalExpression(
       expression: interpolatedCondition
     };
   } catch (error) {
-    console.error('Error evaluating condition:', error);
+    // Support both 'if' and 'condition' fields for error handling
+    const conditionField = conditionalConfig.if || conditionalConfig.condition;
+    
+    // Log the error
+    tools?.logger?.error({
+      message: 'Error evaluating conditional expression',
+      condition: conditionField,
+      error: error instanceof Error ? error.message : String(error)
+    });
     
     // Add error trace
-    if (span && ctx.executionTrace) {
+    if (ctx.executionTrace) {
       ctx.executionTrace.push({
-        type: 'condition-error',
-        condition: conditionalConfig.if,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        type: 'condition-evaluation-error',
+        condition: conditionField,
+        error: error instanceof Error ? error.message : String(error),
         timestamp: Date.now()
       });
     }
     
-    // Default to false on error
     return {
       result: false,
-      expression: conditionalConfig.if || ''
+      expression: conditionField
     };
   }
 }
@@ -168,8 +216,9 @@ export function isValidConditionalConfig(conditionalConfig: any): boolean {
     return false;
   }
   
-  // Must have an 'if' condition
-  if (!conditionalConfig.if || typeof conditionalConfig.if !== 'string') {
+  // Must have an 'if' or 'condition' field
+  const conditionField = conditionalConfig.if || conditionalConfig.condition;
+  if (!conditionField || typeof conditionField !== 'string') {
     return false;
   }
   

@@ -75,7 +75,7 @@ describe('Mapper Functions Tests', () => {
         return value || fallback;
       },
       getCurrentTimestamp: () => {
-        return Date.now();
+        return Date.now().toString();
       }
     };
     
@@ -164,10 +164,10 @@ describe('Mapper Functions Tests', () => {
       calculateDiscount: (amount: number, customerType: string) => {
         const amountNum = Number(amount); // Convertir a number de forma segura
         const discounts: Record<string, number> = { premium: 0.15, standard: 0.05, basic: 0 };
-        return amountNum * (discounts[customerType] || 0);
+        return (amountNum * (discounts[customerType] || 0)).toString();
       },
       
-      getCurrentTimestamp: () => Date.now(),
+      getCurrentTimestamp: () => Date.now().toString(),
       generateId: () => `usr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
 

@@ -45,10 +45,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/arpegium/orchestjs.git"
+    "url": "https://github.com/arpegium/arpegium-js.git"
   },
   "bugs": {
-    "url": "https://github.com/arpegium/orchestjs/issues"
+    "url": "https://github.com/arpegium/arpegium-js/issues"
   },
-  "homepage": "https://github.com/arpegium/orchestjs#readme"
+  "homepage": "https://github.com/arpegium/arpegium-js#readme"
 }

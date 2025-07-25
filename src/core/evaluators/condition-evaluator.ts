@@ -28,7 +28,6 @@ export function evaluateCondition(condition: any): boolean {
       return evaluateSimpleCondition(trimmed);
       
     } catch (error) {
-      console.log('Condition parser failed:', error);
       // Fallback for simple boolean values
       return getFallbackBooleanValue(condition);
     }
@@ -102,7 +101,7 @@ function evaluateSimpleCondition(condition: string): boolean {
     return booleanResult;
   }
   
-  console.log('Simple parser could not handle:', condition);
+  // Could not parse condition, return false as default
   return false;
 }
 
@@ -142,9 +141,6 @@ function evaluateStringCondition(condition: string): boolean | null {
   const stringMatch = condition.match(/^(['"]?)([^'"=!<>]*?)\1\s*([=!]+)\s*(['"]?)([^'"=!<>]*?)\4$/);
   if (stringMatch) {
     const [, , leftStr, operator, , rightStr] = stringMatch;
-    
-    // Debug logging for string comparisons
-    console.log('String comparison:', { leftStr, operator, rightStr, condition });
     
     switch (operator) {
       case '==': case '===': return leftStr.trim() === rightStr.trim();
