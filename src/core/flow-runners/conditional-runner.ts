@@ -18,6 +18,7 @@ import { deepInterpolate } from '../evaluators/interpolation-handler';
  * @param runMiddlewares Function to run middleware arrays
  * @param parentSpan Parent span for tracing
  * @param level Execution level
+ * @param parentName Parent trace entry name for hierarchical display
  * @returns Updated context after conditional execution
  */
 export async function runConditionalMiddleware(
@@ -27,7 +28,8 @@ export async function runConditionalMiddleware(
   traceWithObservabilityFn: any,
   runMiddlewares: Function,
   parentSpan?: any,
-  level: number = 0
+  level: number = 0,
+  parentName?: string
 ): Promise<MiddlewareContext> {
   const blockStart = Date.now();
   let conditionResult = false;
@@ -46,7 +48,7 @@ export async function runConditionalMiddleware(
           name: `conditional-${Date.now()}`,
           type: 'conditional',
           status: 'running',
-          parent: null,
+          parent: parentName,  // Use parentName parameter
           isControl: true,
           startedAt: blockStart
         });
@@ -75,7 +77,7 @@ export async function runConditionalMiddleware(
         }
       } else if (!conditionResult && conditionalConfig.else) {
         executedBranch = 'else';
-        // Handle else branch - could be single middleware or array
+        // Handle else branch - could be single middleware or array  
         if (Array.isArray(conditionalConfig.else)) {
           await runMiddlewares(conditionalConfig.else, ctx, tools, conditionalSpan, false, level + 1);
         } else {

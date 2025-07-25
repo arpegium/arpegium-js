@@ -192,7 +192,8 @@ async function executeParallelMiddleware(
       traceWithObservabilityFn,
       runMiddlewares,
       parallelSpan,
-      level + 1
+      level + 1,
+      parentName  // Pass parent name for proper trace hierarchy
     );
   } else {
     const result = await runSingleMiddleware(

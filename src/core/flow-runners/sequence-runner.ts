@@ -162,7 +162,8 @@ async function executeSequentialMiddleware(
       traceWithObservabilityFn,
       runMiddlewares,
       sequenceSpan, 
-      level + 1
+      level + 1,
+      parentName  // Pass sequence block name as parent
     );
   } else {
     // Execute single middleware and update context
