@@ -216,6 +216,9 @@ describe('Orchestrator - Unit Tests', () => {
       const input = { body: {}, headers: {}, env: {} };
       await orchestrator.runFlow(flow, input, tools);
 
+      // Wait for asynchronous execution trace logging
+      await new Promise(resolve => setImmediate(resolve));
+
       // Verify execution trace was logged
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.objectContaining({
