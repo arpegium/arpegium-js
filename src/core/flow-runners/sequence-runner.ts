@@ -40,7 +40,7 @@ export async function runSequenceMiddlewares(
 ): Promise<MiddlewareContext> {
   const blockStart = Date.now();
   const executionTrace = (ctx as any)._executionTrace;
-  
+
   return await traceWithObservabilityFn(
     'sequence-block',
     async (sequenceSpan: any) => {

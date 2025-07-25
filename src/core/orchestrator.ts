@@ -58,7 +58,8 @@ export class Orchestrator {
       ctx.globals = {};
     }
     
-    if (!ctx.executionTrace) {
+    // Only initialize executionTrace if no _executionTrace system exists
+    if (!ctx.executionTrace && !(ctx as any)._executionTrace) {
       ctx.executionTrace = [];
     }
 

@@ -22,33 +22,51 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
   
   // Si es el nuevo formato ExecutionTraceEntry
   if (trace.length > 0 && trace[0].name && trace[0].type) {
-    const buildTreeLevel = (entries: any[], parentName: string | null, level: number = 0) => {
-      const children = entries.filter(entry => entry.parent === parentName);
+    
+    // Función helper para formatear una entrada
+    const formatEntry = (entry: any, level: number): string => {
+      const indent = '  '.repeat(level);
+      const statusIcon = entry.status === 'success' ? '✓' : entry.status === 'failed' ? '✗' : '⏳';
+      const duration = entry.durationMs || entry.duration || 0;
       
-      for (const entry of children) {
-        const indent = '  '.repeat(level);
-        const statusIcon = entry.status === 'success' ? '✓' : entry.status === 'failed' ? '✗' : '⏳';
-        const duration = entry.durationMs || 0;
-        
-        if (entry.type === 'middleware') {
-          lines.push(`${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`);
-        } else if (entry.type === 'parallel') {
-          lines.push(`${indent}|| parallel (${duration}ms)`);
-        } else if (entry.type === 'sequence') {
-          lines.push(`${indent}>> sequence (${duration}ms)`);
-        } else if (entry.type === 'conditional') {
-          lines.push(`${indent}?? conditional (${duration}ms)`);
-        } else {
-          lines.push(`${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`);
-        }
-        
-        // Recursivamente procesar hijos
-        buildTreeLevel(entries, entry.name, level + 1);
+      if (entry.type === 'middleware') {
+        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`;
+      } else if (entry.type === 'parallel') {
+        return `${indent}|| parallel (${duration}ms)`;
+      } else if (entry.type === 'sequence') {
+        return `${indent}>> sequence (${duration}ms)`;
+      } else if (entry.type === 'conditional') {
+        return `${indent}?? conditional (${duration}ms)`;
+      } else {
+        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`;
       }
     };
     
-    // Empezar con elementos que no tienen parent (root level)
-    buildTreeLevel(trace, null, 0);
+    // Función recursiva simplificada que procesa un nodo y sus hijos
+    const processNode = (entry: any, level: number = 0) => {
+      // Agregar esta entrada
+      lines.push(formatEntry(entry, level));
+      
+      // Buscar y procesar sus hijos en orden temporal
+      const children = trace
+        .filter(child => child.parent === entry.name)
+        .sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+      
+      children.forEach(child => processNode(child, level + 1));
+    };
+    
+    // Función para determinar si una entrada es root (no tiene padre)
+    const isRootEntry = (entry: any): boolean => {
+      return !entry.parent || entry.parent === null;
+    };
+    
+    // Obtener elementos root y procesarlos en orden temporal
+    const rootElements = trace
+      .filter(isRootEntry)
+      .sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
+    
+    rootElements.forEach(rootElement => processNode(rootElement));
+    
   } else {
     // Formato anterior (legacy)
     for (const item of trace) {
