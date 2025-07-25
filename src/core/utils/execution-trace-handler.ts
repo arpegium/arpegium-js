@@ -6,7 +6,7 @@
  */
 
 import { MiddlewareContext, ITools } from '../types';
-import { ExecutionTrace } from '../../utils/executionTrace';
+import { ExecutionTrace, buildExecutionTraceString } from '../../utils/executionTrace';
 
 /**
  * Creates initial execution context with trace setup
@@ -44,9 +44,15 @@ export async function finalizeExecutionTrace(
   // Update final trace
   result.executionTrace = executionTrace.getTrace();
 
-  // Log execution trace for debugging with tree format
-  if (tools?.logger && result.executionTrace) {
-    await logExecutionTrace(result.executionTrace, tools);
+  // Log execution trace asynchronously (non-blocking)
+  if (tools?.logger && result.executionTrace && Array.isArray(result.executionTrace)) {
+    // Schedule execution trace logging to run after the main flow completes
+    setImmediate(() => {
+      logExecutionTrace(result.executionTrace!, tools).catch(error => {
+        // Silent catch - execution trace logging should never affect the main flow
+        console.error('Async execution trace logging failed:', error);
+      });
+    });
   }
 
   // Log non-blocking errors if any
@@ -62,8 +68,6 @@ export async function finalizeExecutionTrace(
  */
 async function logExecutionTrace(executionTrace: any[], tools: ITools): Promise<void> {
   try {
-    const { buildExecutionTraceString } = await import('../../utils/executionTrace');
-    
     const entries = executionTrace;
     const totalDuration = calculateTotalDuration(entries);
     const traceMessage = buildExecutionTraceString(entries, totalDuration);
@@ -73,7 +77,17 @@ async function logExecutionTrace(executionTrace: any[], tools: ITools): Promise<
       executionTrace: traceMessage
     });
   } catch (error) {
-    // Silent fail - execution trace is not critical
+    // Log the detailed error so we can debug what's wrong
+    tools.logger?.error({
+      message: "Failed to log execution trace",
+      response: {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        entriesCount: executionTrace?.length || 0,
+        entriesType: typeof executionTrace,
+        firstEntry: executionTrace?.[0] || null
+      }
+    });
   }
 }
 

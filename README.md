@@ -30,8 +30,16 @@ The Orchestrator Framework allows you to define complex business workflows using
 - **Advanced flow control**: Built-in support for `parallel`, `sequence`, and `conditional` execution
 - **Complex conditional logic**: Support for numeric/string comparisons and logical operators
 - **Variable interpolation**: Access data from previous middlewares using `{{middlewareName.fieldName}}`
+- **Enhanced mapper capabilities**: 
+  - Wildcard copying with `"from": "*"` to copy all source properties
+  - Function execution with parameter support for dynamic transformations
+  - Output precedence handling for complex data flows
 - **Custom functions**: Support for custom utility functions in mappers via functionRegistry
-- **Observability**: Integrated logging and tracing support with execution traces
+- **Advanced execution tracing**: 
+  - Hierarchical execution tree with visual indentation using pipe symbols (`|`)
+  - Real-time flow debugging with temporal ordering
+  - Asynchronous trace logging for optimal performance
+  - Support for deeply nested control structures
 - **Type-safe**: Full TypeScript support with comprehensive type definitions
 - **Extensible**: Easy to add custom middlewares and functions
 - **Error handling**: Built-in error handling with blocking/non-blocking middleware support
@@ -97,7 +105,7 @@ Validates input data using JSON Schema.
 ```
 
 ### Mapper Middleware
-Transforms and maps data between different structures.
+Transforms and maps data between different structures with advanced capabilities.
 
 ```json
 {
@@ -118,11 +126,37 @@ Transforms and maps data between different structures.
       {
         "fn": "toUpperCase({{user.name}})",
         "to": "userName"
+      },
+      {
+        "origin": "user",
+        "from": "*",
+        "to": "userData"
       }
     ]
   }
 }
 ```
+
+#### Advanced Mapper Features
+
+1. **Wildcard Copying**: Use `"from": "*"` to copy all properties from the source object:
+```json
+{
+  "origin": "sourceData",
+  "from": "*",
+  "to": "copiedData"
+}
+```
+
+2. **Function Execution**: Execute custom functions with parameter support:
+```json
+{
+  "fn": "formatDate({{timestamp}}, 'YYYY-MM-DD')",
+  "to": "formattedDate"
+}
+```
+
+3. **Output Precedence**: When `output: true` is set, mapped values take precedence over direct middleware outputs.
 
 **Note**: The `fn` field requires a custom function to be defined in `tools.functionRegistry`. See [Custom Functions in Mappers](#custom-functions-in-mappers) section.
 
@@ -859,6 +893,67 @@ export interface OrchestratorConfig {
   traceWithObservability?: (name: string, fn: (span?: any) => any, parentSpan?: any) => Promise<any>;
 }
 ```
+
+## Execution Tree Visualization
+
+Arpegium JS provides a powerful execution tree feature that shows you exactly how your flow executed, with timing information and hierarchical structure.
+
+### Execution Tree Output
+
+When your flow completes, you'll see a detailed execution tree in the logs:
+
+```
+--- Middleware Execution Tree ---
+InputValidator [validator] (✓) (7ms)
+|| parallel (2ms)
+|  CreditCardCoreToken [b2btokenservice] (✓) (2ms)
+|  AccountsToken [b2btokenservice] (✓) (1ms)
+|  B2BCacheListToken [b2btokenservice] (✓) (1ms)
+|  NrulesApiToken [b2btokenservice] (✓) (1ms)
+|  CountersToken [b2btokenservice] (✓) (0ms)
+>> sequence (518ms)
+|  getDniByOCR [httpRequest] (✓) (518ms)
+|  DniMapper [mapper] (✓) (0ms)
+|| parallel (472ms)
+|  >> sequence (415ms)
+|  |  || parallel (415ms)
+|  |  |  getAccountsBasicDetails [httpRequest] (✓) (415ms)
+|  |  |  getAccountsStatus [httpRequest] (✓) (389ms)
+|  |  LimitsMapper [mapper] (✓) (0ms)
+|  >> sequence (452ms)
+|  |  CountersMapper [mapper] (✓) (4ms)
+|  |  counters [httpRequest] (✓) (447ms)
+|  >> sequence (465ms)
+|  |  getLists [httpRequest] (✓) (465ms)
+RuleEngineMapper [mapper] (✓) (1ms)
+mockRulesResponse [mapper] (✓) (0ms)
+maskedPanRequest [mapper] (✓) (0ms)
+eventBusMessageMapper [mapper] (✓) (1ms)
+SendToEventBus [awsEventBusMessage] (✓) (2ms)
+OutputMapper [mapper] (✓) (0ms)
+
+Total flow duration: 1004ms
+-------------------------------
+```
+
+### Tree Structure Legend
+
+- `||` - Parallel execution block
+- `>>` - Sequential execution block
+- `??` - Conditional execution block
+- `|` - Indentation level (shows nesting depth)
+- `✓` - Successful execution
+- `✗` - Failed execution
+- `⏳` - Currently running
+- `(Xms)` - Execution duration in milliseconds
+
+### Features
+
+- **Hierarchical Visualization**: Shows the exact nesting structure of your flow
+- **Temporal Ordering**: Middlewares appear in the order they were executed
+- **Performance Insights**: See execution times for each step and control structure
+- **Visual Clarity**: Pipe symbols clearly show the relationship between parent and child elements
+- **Asynchronous Logging**: Tree generation doesn't impact your API response times
 
 ## Development Guide
 

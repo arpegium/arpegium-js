@@ -2,10 +2,13 @@
  * Sequence Runner
  * 
  * Handles sequential execution of middleware blocks.
- * Manages step-by-step execution with proper context flow.
+ * Ensures ordered execution with proper trace management.
  */
 
 import { MiddlewareContext, ITools } from '../types';
+
+// Counter to ensure unique sequence block names
+let sequenceCounter = 0;
 import { runSingleMiddleware } from './middleware-runner';
 import { isParallelConfig, isConditionalConfig, isSequenceConfig } from '../utils/flow-detector';
 import { runParallelMiddlewares } from './parallel-runner';
@@ -48,7 +51,7 @@ export async function runSequenceMiddlewares(
       let traceEntry: any = null;
       if (executionTrace) {
         traceEntry = executionTrace.addEntry({
-          name: `sequence-${Date.now()}`,
+          name: `sequence-${Date.now()}-${++sequenceCounter}`,
           type: 'sequence',
           status: 'running',
           parent: parentName,  // Use parentName parameter

@@ -4,6 +4,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Manual test files (development only)
+manual-tests/*.js
+!manual-tests/README.md
+
 # Runtime data
 pids
 *.pid

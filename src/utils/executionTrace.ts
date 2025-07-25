@@ -18,7 +18,7 @@ export function addTrace(ctx: any, node: TraceNode) {
 
 export function buildExecutionTraceString(trace: any[], totalDuration?: number): string {
   let lines: string[] = [];
-  lines.push('--- Middleware Execution Map ---');
+  lines.push('--- Middleware Execution Tree ---');
   
   // Si es el nuevo formato ExecutionTraceEntry
   if (trace.length > 0 && trace[0].name && trace[0].type) {
@@ -48,7 +48,18 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
     };
     
     // Función recursiva simplificada que procesa un nodo y sus hijos
-    const processNode = (entry: any, level: number = 0) => {
+    const processNode = (entry: any, level: number = 0, visited: Set<string> = new Set()) => {
+      // Protección contra referencias circulares
+      if (visited.has(entry.name)) {
+        return;
+      }
+      visited.add(entry.name);
+      
+      // Protección contra profundidad excesiva
+      if (level > 10) {
+        return;
+      }
+      
       // Agregar esta entrada
       lines.push(formatEntry(entry, level));
       
@@ -57,7 +68,7 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
         .filter(child => child.parent === entry.name)
         .sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0));
       
-      children.forEach(child => processNode(child, level + 1));
+      children.forEach(child => processNode(child, level + 1, visited));
     };
     
     // Función para determinar si una entrada es root (no tiene padre)

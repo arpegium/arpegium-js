@@ -1,6 +1,6 @@
 {
   "name": "arpegium-js",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A generic, extensible orchestrator framework for creating JSON-defined workflows with middleware-based processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

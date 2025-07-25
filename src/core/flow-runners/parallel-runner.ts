@@ -6,6 +6,9 @@
  */
 
 import { MiddlewareContext, ITools } from '../types';
+
+// Counter to ensure unique parallel block names
+let parallelCounter = 0;
 import { runSingleMiddleware } from './middleware-runner';
 import { isParallelConfig, isConditionalConfig, isSequenceConfig } from '../utils/flow-detector';
 
@@ -48,7 +51,7 @@ export async function runParallelMiddlewares(
       let traceEntry: any = null;
       if (executionTrace) {
         traceEntry = executionTrace.addEntry({
-          name: `parallel-${Date.now()}`,
+          name: `parallel-${Date.now()}-${++parallelCounter}`,
           type: 'parallel',
           status: 'running',
           parent: parentName,  // Use parentName parameter
