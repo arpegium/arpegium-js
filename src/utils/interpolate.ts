@@ -4,7 +4,7 @@ export function interpolate(template: any, context: any): any {
     return template;
   }
 
-  // Si es una referencia completa a un objeto (ej: "{{CountersMapper}}")
+  // If it's a complete object reference (e.g., "{{UserMapper}}")
   const fullObjectMatch = template.match(/^\{\{([^}]+)\}\}$/);
   if (fullObjectMatch) {
     const path = fullObjectMatch[1].trim();

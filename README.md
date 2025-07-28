@@ -904,35 +904,21 @@ When your flow completes, you'll see a detailed execution tree in the logs:
 
 ```
 --- Middleware Execution Tree ---
-InputValidator [validator] (✓) (7ms)
-|| parallel (2ms)
-|  CreditCardCoreToken [b2btokenservice] (✓) (2ms)
-|  AccountsToken [b2btokenservice] (✓) (1ms)
-|  B2BCacheListToken [b2btokenservice] (✓) (1ms)
-|  NrulesApiToken [b2btokenservice] (✓) (1ms)
-|  CountersToken [b2btokenservice] (✓) (0ms)
->> sequence (518ms)
-|  getDniByOCR [httpRequest] (✓) (518ms)
-|  DniMapper [mapper] (✓) (0ms)
-|| parallel (472ms)
-|  >> sequence (415ms)
-|  |  || parallel (415ms)
-|  |  |  getAccountsBasicDetails [httpRequest] (✓) (415ms)
-|  |  |  getAccountsStatus [httpRequest] (✓) (389ms)
-|  |  LimitsMapper [mapper] (✓) (0ms)
-|  >> sequence (452ms)
-|  |  CountersMapper [mapper] (✓) (4ms)
-|  |  counters [httpRequest] (✓) (447ms)
-|  >> sequence (465ms)
-|  |  getLists [httpRequest] (✓) (465ms)
-RuleEngineMapper [mapper] (✓) (1ms)
-mockRulesResponse [mapper] (✓) (0ms)
-maskedPanRequest [mapper] (✓) (0ms)
-eventBusMessageMapper [mapper] (✓) (1ms)
-SendToEventBus [awsEventBusMessage] (✓) (2ms)
-OutputMapper [mapper] (✓) (0ms)
+InputMapper [mapper] (✓) (1ms)
+>> sequence (24ms)
+|  || parallel (0ms)
+|  |  UserValidation [validator] (✓) (0ms)
+|  |  AmountValidation [validator] (✓) (0ms)
+|  DebugBeforeConditional [debug] (✓) (22ms)
+|  ?? conditional (2ms)
+|  |  >> sequence (1ms)
+|  |  |  HighAmountProcess [mapper] (✓) (0ms)
+|  |  |  ?? conditional (0ms)
+TransferValidation [mapper] (✓) (0ms)
+DebugPoint [debug] (✓) (0ms)
+FinalResponse [mapper] (✓) (0ms)
 
-Total flow duration: 1004ms
+Total flow duration: 25ms
 -------------------------------
 ```
 

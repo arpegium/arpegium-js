@@ -20,14 +20,14 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
     };
   }
 
-  // Mejora la interpolación - asegúrate de que el contexto incluya env y globals
+  // Enhanced interpolation - ensure context includes env and globals
   const interpolationContext = {
-    ...ctx.globals, // Primero los globals (aquí están los tokens como CreditCardCoreToken)
-    ...ctx.input,   // Luego el input (que incluye body, pathParameters, etc.)
+    ...ctx.globals, // First globals (middleware outputs)
+    ...ctx.input,   // Then input (includes body, pathParameters, etc.)
     env: ctx.input?.env || process.env,
-    // Agrega propiedades específicas del body para fácil acceso
+    // Add specific body properties for easy access
     ...(ctx.input?.body || {}),
-    // Agrega pathParameters para acceso directo
+    // Add pathParameters for direct access
     ...(ctx.input?.pathParameters || {})
   };
 
@@ -72,13 +72,7 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
           originalHeaders: options.headers,
           interpolatedHeaders: interpolatedHeaders,
           uninterpolatedHeaders: uninterpolatedHeaders,
-          availableTokens: {
-            CreditCardCoreToken: !!interpolationContext.CreditCardCoreToken,
-            AccountsToken: !!interpolationContext.AccountsToken,
-            B2BCacheListToken: !!interpolationContext.B2BCacheListToken,
-            NrulesApiToken: !!interpolationContext.NrulesApiToken,
-            CountersToken: !!interpolationContext.CountersToken
-          }
+          availableContext: Object.keys(interpolationContext)
         },
         event: { headers: ctx.input.headers || {} }
       });

@@ -1,4 +1,4 @@
-import { Orchestrator } from 'orchestjs';
+import { Orchestrator } from 'arpegium-js';
 
 // Ejemplo de uso básico
 async function basicExample() {
@@ -203,7 +203,7 @@ function createExpressApp() {
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      service: 'orchestjs-express-server'
+      service: 'arpegium-js-express-server'
     });
   });
 
@@ -365,7 +365,7 @@ if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   
   app.listen(PORT, () => {
-    console.log(`🚀 OrchestJS Express Server running on port ${PORT}`);
+    console.log(`🚀 Arpegium JS Express Server running on port ${PORT}`);
     console.log(`📋 Available endpoints:`);
     console.log(`   GET  http://localhost:${PORT}/health`);
     console.log(`   GET  http://localhost:${PORT}/api/flows`);

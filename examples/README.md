@@ -1,11 +1,11 @@
-# OrchestJS Examples
+# Arpegium JS Examples
 
-This directory contains practical examples of how to use OrchestJS in different environments.
+This directory contains practical examples of how to use Arpegium JS in different environments.
 
 ## Available Examples
 
 ### 1. Basic Usage (`usage-example.ts`)
-Basic example showing how to use OrchestJS with simple flows.
+Basic example showing how to use Arpegium JS with simple flows.
 
 ### 2. Express Server (`express-server.ts`)
 Complete Express.js server integration with dynamic flow execution.
@@ -19,7 +19,7 @@ AWS Lambda handler integration example.
 
 1. **Install dependencies:**
    ```bash
-   npm install express @types/express orchestjs
+   npm install express @types/express arpegium-js
    ```
 
 2. **Run the server:**
@@ -76,7 +76,7 @@ AWS Lambda handler integration example.
 
 1. **Install dependencies:**
    ```bash
-   npm install aws-lambda @types/aws-lambda orchestjs
+   npm install aws-lambda @types/aws-lambda arpegium-js
    ```
 
 2. **Deploy using your preferred method:**

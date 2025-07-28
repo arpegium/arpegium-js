@@ -4,7 +4,7 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import * as path from "path";
 import * as fs from "fs";
-import { Orchestrator, FlowConfig } from "orchestjs";
+import { Orchestrator, FlowConfig } from "arpegium-js";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   // Configuración SSL si es necesaria
@@ -20,9 +20,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     orchestrator.setObservabilityTracer(yourTracingFunction);
   }
 
-  // Registrar middlewares personalizados
-  orchestrator.registerMiddleware('b2btokenservice', b2bTokenServiceMiddleware);
-  orchestrator.registerMiddleware('awsEventBusMessage', awsEventBusMessageMiddleware);
+  // Register custom middlewares
+  orchestrator.registerMiddleware('customTokenService', customTokenServiceMiddleware);
+  orchestrator.registerMiddleware('messagingService', messagingServiceMiddleware);
 
   try {
     const input = {
@@ -84,9 +84,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 };
 
-// Definiciones de tus middlewares personalizados y herramientas
-declare const b2bTokenServiceMiddleware: any;
-declare const awsEventBusMessageMiddleware: any;
+// Definitions for your custom middlewares and tools
+declare const customTokenServiceMiddleware: any;
+declare const messagingServiceMiddleware: any;
 declare const yourLogger: any;
 declare const yourTracer: any;
 declare const yourFunctionRegistry: any;

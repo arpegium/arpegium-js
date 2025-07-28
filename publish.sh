@@ -56,7 +56,7 @@ npm publish
 
 if [ $? -eq 0 ]; then
     echo "✅ ¡Paquete publicado exitosamente!"
-    echo "🎉 Puedes instalarlo con: npm install orchestjs"
+    echo "🎉 Puedes instalarlo con: npm install arpegium-js"
 else
     echo "❌ Error durante la publicación"
     exit 1

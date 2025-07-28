@@ -1,4 +1,4 @@
-# OrchestJS Development
+# Arpegium JS Development
 
 ## Para desarrollo local
 
@@ -9,7 +9,7 @@ Si quieres probar el paquete localmente antes de publicar:
 npm pack
 
 # En tu proyecto de prueba
-npm install /ruta/al/orchestjs-1.0.0.tgz
+npm install /ruta/al/arpegium-js-0.2.0.tgz
 ```
 
 ## Para enlazar localmente durante desarrollo
@@ -19,7 +19,7 @@ npm install /ruta/al/orchestjs-1.0.0.tgz
 npm link
 
 # En tu proyecto de prueba
-npm link orchestjs
+npm link arpegium-js
 ```
 
 ## Comandos útiles
@@ -41,7 +41,7 @@ npm pack --dry-run
 ## Estructura del paquete publicado
 
 ```
-orchestjs/
+arpegium-js/
 ├── dist/           # Código compilado
 ├── README.md       # Documentación
 ├── LICENSE         # Licencia MIT
