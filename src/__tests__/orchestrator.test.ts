@@ -107,12 +107,10 @@ describe('Orchestrator - Integration Tests', () => {
     });
 
     test('should handle validation failure', async () => {
-      // For now, let's test that the flow completes without validation error
-      // This suggests the validator middleware might need configuration or the validation logic needs review
-      const result = await orchestrator.runFlow(integrationFlows.validatorFailure, integrationInputs.validatorFailure, tools);
-      
-      // Verify flow completed - the actual validation behavior may need adjustment
-      expect(result).toBeDefined();
+      // Now that validator is working properly, it should throw an error on validation failure
+      await expect(
+        orchestrator.runFlow(integrationFlows.validatorFailure, integrationInputs.validatorFailure, tools)
+      ).rejects.toThrow('Validation failed');
     });
   });
 

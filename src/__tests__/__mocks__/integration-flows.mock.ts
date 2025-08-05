@@ -48,7 +48,7 @@ export const integrationFlows = {
             },
             required: ["email", "age"]
           },
-          source: "body"
+          origin: "body"
         }
       },
       {
@@ -81,7 +81,7 @@ export const integrationFlows = {
             },
             required: ["requiredField"]
           },
-          source: "body"
+          origin: "body"
         }
       }
     ]

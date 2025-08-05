@@ -54,6 +54,7 @@ function resolveSource(origin: string | undefined, ctx: any) {
 export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) => {
   const result: any = {};
   
+  // Mapper handles its own interpolation - config comes without pre-interpolation
   const mapping = mw.options?.mapping || mw;
 
   if (Array.isArray(mapping)) {
@@ -73,9 +74,27 @@ export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) =>
             if (fn) {
               let args: any[] = [];
               if (fnArgsRaw) {
-                // Simple argument parsing - split by comma and trim
+                // Create interpolation context like interpolation-handler does
+                const interpolationContext = {
+                  ...ctx.globals,
+                  ...ctx.input,
+                  env: ctx.input?.env || process.env,
+                  ...(ctx.input?.body || {}),
+                  ...(ctx.input?.pathParameters || {}),
+                  _ctx: ctx
+                };
+                
+                // Parse arguments and interpolate each one
                 args = fnArgsRaw.split(',').map(arg => {
                   const trimmed = arg.trim();
+                  
+                  // Check if it's an interpolation pattern
+                  if (trimmed.includes('{{') && trimmed.includes('}}')) {
+                    const interpolated = interpolate(trimmed, interpolationContext);
+                    // Always return the interpolated value, even if null
+                    return interpolated;
+                  }
+                  
                   // Remove quotes if present
                   if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
                       (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
@@ -90,6 +109,7 @@ export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) =>
                 });
               }
               
+              // Ensure we always pass the right number of arguments, including null values
               value = fn(...args);
             } else {
               tools?.logger?.error(`Function ${fnName} not found in functionRegistry`);
@@ -97,7 +117,15 @@ export const mapperMiddleware = createMiddleware(async (ctx, mw, tools, span) =>
             }
           } else {
             // Fallback to interpolation for complex expressions
-            value = await interpolate(mapItem.fn, ctx);
+            const interpolationContext = {
+              ...ctx.globals,
+              ...ctx.input,
+              env: ctx.input?.env || process.env,
+              ...(ctx.input?.body || {}),
+              ...(ctx.input?.pathParameters || {}),
+              _ctx: ctx
+            };
+            value = interpolate(mapItem.fn, interpolationContext);
           }
         } else if (mapItem.hasOwnProperty('value')) {
           value = mapItem.value;

@@ -41,12 +41,27 @@ export function resolveFlowOutput(
   
   // If there's a middleware marked as output and we have output in context
   if (outputMiddleware && result.output) {
+    // Include non-blocking errors if they exist
+    if (result.nonBlockingErrors && result.nonBlockingErrors.length > 0) {
+      return {
+        ...result.output,
+        nonBlockingErrors: result.nonBlockingErrors
+      };
+    }
     return result.output;
   }
   
   // If we found the output middleware in globals, return its result
   if (outputMiddleware && outputMiddleware.name && result.globals[outputMiddleware.name]) {
-    return result.globals[outputMiddleware.name];
+    const outputData = result.globals[outputMiddleware.name];
+    // Include non-blocking errors if they exist
+    if (result.nonBlockingErrors && result.nonBlockingErrors.length > 0) {
+      return {
+        ...outputData,
+        nonBlockingErrors: result.nonBlockingErrors
+      };
+    }
+    return outputData;
   }
 
   // Find any result that's not system metadata
@@ -58,10 +73,23 @@ export function resolveFlowOutput(
   // Return the last valid result
   if (resultKeys.length > 0) {
     const lastKey = resultKeys[resultKeys.length - 1];
-    return result.globals[lastKey];
+    const outputData = result.globals[lastKey];
+    // Include non-blocking errors if they exist
+    if (result.nonBlockingErrors && result.nonBlockingErrors.length > 0) {
+      return {
+        ...outputData,
+        nonBlockingErrors: result.nonBlockingErrors
+      };
+    }
+    return outputData;
   }
 
-  // If no specific results, return empty object
+  // If no specific results, return empty object with non-blocking errors if any
+  if (result.nonBlockingErrors && result.nonBlockingErrors.length > 0) {
+    return {
+      nonBlockingErrors: result.nonBlockingErrors
+    };
+  }
   return {};
 }
 

@@ -16,7 +16,14 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
     return {
       ctx,
       status: "failed",
-      error: "HTTP request middleware requires a URL in options"
+      error: {
+        message: "HTTP request middleware requires a URL in options",
+        requestData: {
+          options: options,
+          providedUrl: options.url,
+          availableOptions: Object.keys(options)
+        }
+      }
     };
   }
 
@@ -72,7 +79,10 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
           originalHeaders: options.headers,
           interpolatedHeaders: interpolatedHeaders,
           uninterpolatedHeaders: uninterpolatedHeaders,
-          availableContext: Object.keys(interpolationContext)
+          availableContext: Object.keys(interpolationContext),
+          url: interpolatedUrl,
+          method: options.method || 'GET',
+          body: interpolatedBody
         },
         event: { headers: ctx.input.headers || {} }
       });
@@ -98,7 +108,21 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
     return {
       ctx,
       status: "failed",
-      error: `HTTP request URL must be absolute. Got: ${interpolatedUrl} from ${options.url}`
+      error: {
+        message: `HTTP request URL must be absolute. Got: ${interpolatedUrl} from ${options.url}`,
+        requestData: {
+          originalUrl: options.url,
+          interpolatedUrl: interpolatedUrl,
+          method: options.method || 'GET',
+          headers: interpolatedHeaders,
+          body: interpolatedBody,
+          context: {
+            hasEnv: !!ctx.input?.env,
+            envKeys: ctx.input?.env ? Object.keys(ctx.input.env) : [],
+            availableContext: Object.keys(interpolationContext)
+          }
+        }
+      }
     };
   }
 
@@ -136,7 +160,20 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
     return {
       ctx,
       status: "failed",
-      error: `HTTP request failed: ${(err as Error)?.message || String(err)}`
+      error: {
+        message: `HTTP request failed: ${(err as Error)?.message || String(err)}`,
+        requestData: {
+          url: interpolatedUrl,
+          originalUrl: options.url,
+          method: options.method || 'GET',
+          headers: interpolatedHeaders,
+          originalHeaders: options.headers,
+          body: interpolatedBody,
+          originalBody: options.body,
+          interpolationContext: Object.keys(interpolationContext)
+        },
+        networkError: (err as Error)?.message || String(err)
+      }
     };
   } finally {
     if (options.ignoreTLSErrors === true) {
@@ -171,9 +208,21 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
       status: "failed",
       error: {
         message: `HTTP request failed with status ${response.status}: ${response.statusText}`,
-        body: data,
-        status: response.status,
-        statusText: response.statusText
+        requestData: {
+          url: interpolatedUrl,
+          originalUrl: options.url,
+          method: options.method || 'GET',
+          headers: interpolatedHeaders,
+          originalHeaders: options.headers,
+          body: interpolatedBody,
+          originalBody: options.body,
+          interpolationContext: Object.keys(interpolationContext)
+        },
+        response: {
+          status: response.status,
+          statusText: response.statusText,
+          body: data
+        }
       }
     };
   }

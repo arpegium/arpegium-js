@@ -14,6 +14,7 @@ npm install arpegium-js
 - [Quick Start](#quick-start)
 - [Built-in Middlewares](#built-in-middlewares)
 - [Flow Control](#flow-control)
+- [Error Handling and Blocking Middleware](#error-handling-and-blocking-middleware)
 - [Creating Custom Middlewares](#creating-custom-middlewares)
 - [Type Definitions](#type-definitions)
 - [Development Guide](#development-guide)
@@ -42,7 +43,16 @@ The Orchestrator Framework allows you to define complex business workflows using
   - Support for deeply nested control structures
 - **Type-safe**: Full TypeScript support with comprehensive type definitions
 - **Extensible**: Easy to add custom middlewares and functions
-- **Error handling**: Built-in error handling with blocking/non-blocking middleware support
+- **Robust error handling**: 
+  - Blocking vs non-blocking middleware support
+  - Comprehensive error collection and reporting
+  - Enhanced HTTP request error details with complete request context
+  - JSON schema validation with format support (email, date, etc.)
+- **Enhanced HTTP middleware**: 
+  - Complete request data in error responses
+  - SSL/TLS configuration support
+  - Detailed logging and debugging capabilities
+- **Comprehensive validation**: JSON schema validation with ajv and ajv-formats support
 - **Debug support**: Built-in debug middleware for flow inspection
 
 ## Quick Start
@@ -81,7 +91,7 @@ const result = await orchestrator.runFlow(flowConfig, input, tools);
 ## Built-in Middlewares
 
 ### Validator Middleware
-Validates input data using JSON Schema.
+Validates input data using JSON Schema with comprehensive format support.
 
 ```json
 {
@@ -92,14 +102,16 @@ Validates input data using JSON Schema.
     "schema": {
       "type": "object",
       "properties": {
-        "email": { "type": "string", "format": "email" }
+        "email": { "type": "string", "format": "email" },
+        "age": { "type": "number", "minimum": 0 }
       },
       "required": ["email"]
     },
     "onError": {
       "type": "ValidationError",
       "code": 422
-    }
+    },
+    "blocking": true  // Default: true. Set to false for non-blocking validation
   }
 }
 ```
@@ -161,7 +173,7 @@ Transforms and maps data between different structures with advanced capabilities
 **Note**: The `fn` field requires a custom function to be defined in `tools.functionRegistry`. See [Custom Functions in Mappers](#custom-functions-in-mappers) section.
 
 ### HTTP Request Middleware
-Makes HTTP requests with interpolation support.
+Makes HTTP requests with comprehensive error reporting and SSL configuration support.
 
 ```json
 {
@@ -169,14 +181,35 @@ Makes HTTP requests with interpolation support.
   "name": "GetUserData",
   "options": {
     "url": "https://api.example.com/users/{{userId}}",
-    "method": "GET",
+    "method": "POST",
     "headers": {
       "Authorization": "Bearer {{token}}",
       "Content-Type": "application/json"
     },
-    "rejectUnauthorized": false
+    "body": {
+      "requestId": "{{requestId}}",
+      "timestamp": "{{timestamp}}"
+    },
+    "rejectUnauthorized": false,
+    "blocking": true  // Default: true. Set to false for non-blocking requests
   }
 }
+```
+
+#### Enhanced Error Reporting
+HTTP Request middleware provides detailed error information including:
+- Original and interpolated URLs
+- Complete headers (original and interpolated)
+- Request body data
+- Interpolation context
+- Network error details
+- HTTP response status and body
+
+#### SSL/TLS Configuration
+Supports various SSL configurations:
+- `rejectUnauthorized: false` - Disable SSL certificate validation
+- `allowInsecure: true` - Allow insecure connections
+- `ignoreTLSErrors: true` - Ignore all TLS errors
 ```
 
 ## Flow Control
@@ -720,6 +753,84 @@ Use the debug middleware to inspect flow execution:
 ```
 
 This will log the current context state and optionally stop execution for debugging.
+
+## Error Handling and Blocking Middleware
+
+Arpegium JS provides sophisticated error handling through blocking and non-blocking middleware configurations.
+
+### Blocking vs Non-Blocking Middleware
+
+#### Blocking Middleware (Default)
+When a middleware has `blocking: true` (default behavior), any error will immediately stop the flow execution:
+
+```json
+{
+  "type": "validator",
+  "name": "CriticalValidation",
+  "options": {
+    "origin": "body",
+    "schema": { /* schema */ },
+    "blocking": true  // This is the default
+  }
+}
+```
+
+#### Non-Blocking Middleware
+When a middleware has `blocking: false`, errors are collected but don't stop execution:
+
+```json
+{
+  "type": "validator",
+  "name": "OptionalValidation",
+  "options": {
+    "origin": "body",
+    "schema": { /* schema */ },
+    "blocking": false  // Continue on error
+  }
+}
+```
+
+### Error Collection
+Non-blocking errors are collected in the final response under `nonBlockingErrors`:
+
+```typescript
+// Example response with non-blocking errors
+{
+  "result": { /* successful flow output */ },
+  "nonBlockingErrors": [
+    {
+      "middleware": "OptionalValidation",
+      "error": "Validation failed",
+      "details": { /* error details */ }
+    }
+  ]
+}
+```
+
+### Mixed Error Handling
+You can combine blocking and non-blocking middleware in the same flow:
+
+```json
+{
+  "sequence": [
+    {
+      "type": "validator",
+      "name": "CriticalValidation",
+      "options": { "blocking": true }  // Must pass
+    },
+    {
+      "type": "httpRequest", 
+      "name": "OptionalEnrichment",
+      "options": { "blocking": false } // Can fail
+    },
+    {
+      "type": "mapper",
+      "name": "FinalMapping",
+      "options": { "blocking": true }   // Must pass
+    }
+  ]
+}
+```
 
 ## Creating Custom Middlewares
 

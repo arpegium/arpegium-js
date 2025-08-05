@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-08-05
+
+### Added
+- **Enhanced Error Handling**: Introduced blocking vs non-blocking middleware support
+  - Added `blocking` option (default: true) to all middleware configurations
+  - Non-blocking middleware errors are collected in `nonBlockingErrors` array in final response
+  - Mixed error handling support within the same flow
+- **Enhanced HTTP Request Middleware**: 
+  - Complete request data included in all error responses (original/interpolated URLs, headers, body, context)
+  - Enhanced SSL/TLS configuration options (`rejectUnauthorized`, `allowInsecure`, `ignoreTLSErrors`)
+  - Detailed error logging with comprehensive debugging information
+- **Improved JSON Schema Validation**:
+  - Added `ajv-formats` package for email, date, and other format validation support
+  - Enhanced validation error reporting with complete context
+- **Comprehensive Test Coverage**:
+  - Added blocking/non-blocking middleware test suite (`blocking-middleware.test.ts`)
+  - Added HTTP error details validation tests (`http-error-details.test.ts`)
+  - Enhanced integration test coverage with 52 total tests across 9 test suites
+- **Enhanced Documentation**:
+  - Added comprehensive error handling section in README
+  - Updated middleware documentation with blocking configuration examples
+  - Enhanced HTTP middleware documentation with error reporting details
+
+### Fixed
+- Fixed email format validation in JSON schema validator by adding ajv-formats dependency
+- Fixed mock configurations in integration tests (corrected "source" to "origin")
+- Enhanced output resolver to properly preserve nonBlockingErrors in final response
+
+### Changed
+- Updated package version to 0.3.0
+- Enhanced error reporting across all middleware types
+- Improved debugging capabilities with detailed request/response logging
+
+### Technical Improvements
+- Enhanced middleware runner to handle blocking/non-blocking error collection
+- Improved error propagation and final response composition
+- Added comprehensive error context preservation
+- Enhanced HTTP request middleware with complete error reporting
+
 ## [0.2.0] - 2025-07-25
 
 ### Added

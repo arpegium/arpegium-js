@@ -58,7 +58,8 @@ export async function runSingleMiddleware(
         }
 
         // Interpolate middleware options with current context
-        const interpolatedConfig = {
+        // Exception: mapper middleware handles its own interpolation to avoid double processing
+        const interpolatedConfig = config.type === 'mapper' ? config : {
           ...config,
           options: interpolateOptions(config.options, ctx)
         };
@@ -68,13 +69,74 @@ export async function runSingleMiddleware(
         
         const end = Date.now();
         
-        // Update trace - SUCCESS
-        if (executionTrace && traceEntry) {
-          executionTrace.updateEntry(config.name, {
-            status: "success",
-            endedAt: end
-          });
-          ctx.executionTrace = executionTrace.getTrace();
+        // Check if middleware failed
+        if (result && result.status === "failed") {
+          // Update trace - FAILED
+          if (executionTrace && traceEntry) {
+            executionTrace.updateEntry(config.name, {
+              status: "failed",
+              endedAt: end,
+              error: result.error?.message || result.error || "Middleware execution failed"
+            });
+            ctx.executionTrace = executionTrace.getTrace();
+          }
+          
+          // Check if this middleware is blocking (default is true)
+          const isBlocking = config.options?.blocking !== false;
+          
+          if (isBlocking) {
+            // For blocking middlewares, throw an error to stop execution
+            const errorMessage = result.error?.message || result.error || "Middleware validation failed";
+            const error = new Error(errorMessage);
+            
+            // Include detailed middleware error information
+            (error as any).middlewareError = result.error;
+            (error as any).middlewareName = config.name;
+            (error as any).middlewareType = config.type;
+            
+            // Only add validationDetails for actual validation errors (from validator middleware)
+            if (config.type === 'validator' || result.error?.type === "ValidationError") {
+              // Clean and structure validation errors for easier consumption
+              const cleanValidationErrors = result.error?.validationErrors?.map((err: any) => ({
+                path: err.instancePath || 'root',
+                message: err.message
+              })) || [];
+              
+              (error as any).validationDetails = {
+                type: result.error?.type || "ValidationError",
+                code: result.error?.code || 422, // Default to 422 for validation errors
+                message: errorMessage,
+                errors: cleanValidationErrors,
+                totalErrors: cleanValidationErrors.length,
+                // Keep original for debugging if needed
+                originalValidationErrors: result.error?.validationErrors || []
+              };
+            }
+            
+            throw error;
+          } else {
+            // For non-blocking middlewares, add to errors but continue
+            if (!ctx.nonBlockingErrors) {
+              ctx.nonBlockingErrors = [];
+            }
+            ctx.nonBlockingErrors.push({
+              middleware: config.name,
+              type: config.type,
+              blocking: false,
+              error: result.error?.message || result.error || "Middleware execution failed",
+              level: level,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } else {
+          // Update trace - SUCCESS
+          if (executionTrace && traceEntry) {
+            executionTrace.updateEntry(config.name, {
+              status: "success",
+              endedAt: end
+            });
+            ctx.executionTrace = executionTrace.getTrace();
+          }
         }
 
         // Check if middleware requested execution to stop

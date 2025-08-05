@@ -1,7 +1,10 @@
 import { createMiddleware } from "../base";
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 
-const ajv = new Ajv();
+// Configure AJV to show all errors, not just the first one
+const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
 
 export const validatorMiddleware = createMiddleware(async (ctx, mw) => {
   const options = mw.options || {};
@@ -54,7 +57,7 @@ export const validatorMiddleware = createMiddleware(async (ctx, mw) => {
     const error = {
       type: options.onError?.type || "ValidationError",
       message: options.onError?.message || "Validation failed",
-      code: options.onError?.code || 400,
+      code: options.onError?.code || 422, // Use 422 for validation errors by default
       details: validate.errors || options.onError?.details,
       validationErrors: validate.errors
     };

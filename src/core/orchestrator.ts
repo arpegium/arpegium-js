@@ -67,11 +67,37 @@ export class Orchestrator {
       ctx = await this.runMiddlewares(flow.middlewares, ctx, tools, null, true, 0);
       return ctx;
     } catch (error) {
-      tools?.logger?.error({
+      // Enhanced error logging with validation details
+      const errorInfo: any = {
         message: 'Error executing orchestrator',
         error: error instanceof Error ? error.message : String(error),
         flow: flow.name
-      });
+      };
+      
+      // Include validation details if available
+      if ((error as any).validationDetails) {
+        errorInfo.validationDetails = (error as any).validationDetails;
+      }
+      
+      if ((error as any).middlewareName) {
+        errorInfo.failedMiddleware = {
+          name: (error as any).middlewareName,
+          type: (error as any).middlewareType
+        };
+      }
+      
+      tools?.logger?.error(errorInfo);
+      
+      // Re-throw with enhanced error information
+      if ((error as any).validationDetails) {
+        const enhancedError = new Error(error instanceof Error ? error.message : String(error));
+        (enhancedError as any).validationDetails = (error as any).validationDetails;
+        (enhancedError as any).middlewareName = (error as any).middlewareName;
+        (enhancedError as any).middlewareType = (error as any).middlewareType;
+        (enhancedError as any).middlewareError = (error as any).middlewareError;
+        throw enhancedError;
+      }
+      
       throw error;
     }
   }

@@ -15,13 +15,13 @@ export function interpolate(template: any, context: any): any {
       if (value && typeof value === 'object' && key in value) {
         value = value[key];
       } else {
-        // Si no encuentra el valor, devuelve el template original
-        return template;
+        // Si no encuentra el valor, devuelve null en lugar del template original
+        return null;
       }
     }
     
     // Si encontramos el valor, lo devolvemos (puede ser objeto, string, etc.)
-    return value !== undefined && value !== null ? value : template;
+    return value !== undefined && value !== null ? value : null;
   }
 
   // Para interpolación parcial en strings (ej: "Bearer {{token}}")
@@ -33,7 +33,8 @@ export function interpolate(template: any, context: any): any {
       if (value && typeof value === 'object' && key in value) {
         value = value[key];
       } else {
-        return match;
+        // Para consistencia con interpolación completa, devolvemos 'null' en lugar de cadena vacía
+        return 'null';
       }
     }
     
