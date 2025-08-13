@@ -38,13 +38,16 @@ export async function runSingleMiddleware(
     async (span: any) => {
       let traceEntry;
       
+      // Determinar el padre correcto: prioridad para currentParent (utilizado por retry)
+      const actualParent = (ctx._internal && ctx._internal.currentParent) || parentName || null;
+      
       // Add entry to execution trace
       if (executionTrace) {
         traceEntry = executionTrace.addEntry({
           name: config.name,
           type: config.type,
           status: "running",
-          parent: parentName || null,
+          parent: actualParent,
           startedAt: start
         });
         // Update context array to reflect changes
@@ -76,7 +79,8 @@ export async function runSingleMiddleware(
             executionTrace.updateEntry(config.name, {
               status: "failed",
               endedAt: end,
-              error: result.error?.message || result.error || "Middleware execution failed"
+              error: result.error?.message || result.error || "Middleware execution failed",
+              meta: result.meta // Incluir los metadatos del middleware
             });
             ctx.executionTrace = executionTrace.getTrace();
           }
@@ -93,6 +97,17 @@ export async function runSingleMiddleware(
             (error as any).middlewareError = result.error;
             (error as any).middlewareName = config.name;
             (error as any).middlewareType = config.type;
+            
+            // Si hay detalles específicos del error HTTP, incluirlos
+            if (result.error?.requestData || result.error?.response) {
+              (error as any).requestDetails = result.error.requestData || { hasBody: false };
+              (error as any).responseDetails = result.error.response || {};
+            }
+            
+            // Si hay detalles específicos del retry, incluirlos
+            if (result.error?.retryContext) {
+              (error as any).retryDetails = result.error.retryContext;
+            }
             
             // Only add validationDetails for actual validation errors (from validator middleware)
             if (config.type === 'validator' || result.error?.type === "ValidationError") {
@@ -133,7 +148,8 @@ export async function runSingleMiddleware(
           if (executionTrace && traceEntry) {
             executionTrace.updateEntry(config.name, {
               status: "success",
-              endedAt: end
+              endedAt: end,
+              meta: result.meta // Incluir los metadatos del middleware
             });
             ctx.executionTrace = executionTrace.getTrace();
           }

@@ -48,6 +48,13 @@ The Orchestrator Framework allows you to define complex business workflows using
   - Comprehensive error collection and reporting
   - Enhanced HTTP request error details with complete request context
   - JSON schema validation with format support (email, date, etc.)
+- **Custom middleware types**: 
+  - Register your own middleware types for better TypeScript integration
+  - Domain-specific middleware with type safety
+- **Enhanced HTTP request capabilities**:
+  - Access to full response metadata (headers, status, etc.)
+  - Timestamp tracking for performance monitoring
+  - Complete request/response lifecycle tracing
 - **Enhanced HTTP middleware**: 
   - Complete request data in error responses
   - SSL/TLS configuration support
@@ -205,9 +212,138 @@ HTTP Request middleware provides detailed error information including:
 - Network error details
 - HTTP response status and body
 
+#### Response Metadata Access
+For successful requests, the middleware stores both the response body and metadata:
+- Response body is stored in `globals[name]`
+- Detailed metadata is stored in `globals[name + "-metadata"]` including:
+  - `status`: HTTP status code
+  - `statusText`: HTTP status text
+  - `headers`: Response headers as key-value pairs
+  - `url`: Final interpolated URL used for the request
+  - `method`: HTTP method used
+  - `requestTimestamp`: ISO timestamp when the request was made
+
+Example of accessing the metadata:
+```javascript
+const statusCode = ctx.globals['apiCall-metadata'].status;
+const requestId = ctx.globals['apiCall-metadata'].headers['x-request-id'];
+```
+
 #### SSL/TLS Configuration
 Supports various SSL configurations:
 - `rejectUnauthorized: false` - Disable SSL certificate validation
+
+### Retry Middleware
+Implements exponential backoff retry logic for handling transient failures in operations, particularly for external service calls. With version 1.0.0+, retry middleware provides enhanced execution tracing and detailed error propagation.
+
+#### Key Features
+- Exponential backoff with configurable initial/max delay
+- Selective retry based on error types
+- Detailed execution traces showing each retry attempt
+- Parent-child relationship tracking in execution trace
+- Full error details propagation including HTTP errors
+
+```json
+{
+  "type": "retry",
+  "name": "RetryApiCall",
+  "options": {
+    "maxAttempts": 5,           // Maximum number of attempts (default: 3)
+    "interval": 1,              // Base interval in seconds (default: 1)
+    "backoffRate": 2,           // Multiplication factor for each retry (default: 2)
+    "jitter": 0.2,              // Random factor to avoid thundering herd (default: 0)
+    "errors": ["NetworkError", "ServiceUnavailable"],  // Error types to retry (default: all errors)
+    "blocking": true,           // Stop flow execution if all retries fail (default: true)
+    "step": {                   // The middleware step to retry
+      "type": "httpRequest",
+      "name": "ExternalApiCall",
+      "options": {
+        "url": "https://api.example.com/data",
+        "method": "GET"
+      }
+    }
+  }
+}
+```
+
+#### Features
+
+1. **Exponential Backoff**: Wait time increases exponentially between retries to avoid overwhelming services that are recovering
+   ```
+   1st retry: interval seconds
+   2nd retry: interval * backoffRate seconds
+   3rd retry: interval * backoffRate^2 seconds
+   ...
+   ```
+
+2. **Jitter**: Adds randomness to retry intervals to prevent synchronized retries from multiple sources
+   - Setting `jitter: 0.2` adds up to 20% random variation to the wait time
+
+3. **Selective Retry**: Control which errors should trigger a retry
+   - Specify error types in the `errors` array
+   - If the array is empty, all errors will trigger a retry
+
+4. **Detailed Execution Trace**: Track all retry attempts in the execution trace
+   - Number of attempts
+   - Wait times
+   - Error information for each attempt
+
+5. **Configurable Timeout**: Set a timeout for the HTTP request using `timeout` option (milliseconds, 0 for no timeout)
+
+6. **Blocking/Non-blocking Configuration**: Control flow behavior when retries are exhausted
+   - `blocking: false` - Continue flow execution even after all retry attempts fail
+   - Default (`blocking: true`) - Stop flow execution when all retry attempts are exhausted
+
+7. **Orchestrator Integration**: Seamless integration with the flow execution system
+   - Uses the orchestrator's executeStep function for executing nested middleware
+   - Fully compatible with sequence, parallel, and conditional flows as nested steps
+   - Supports all middleware types registered in the orchestrator
+
+#### Use Cases
+
+- API calls to external services that may experience temporary outages
+- Database operations that may face transient connectivity issues
+- Resource-intensive operations that might occasionally fail due to resource constraints
+
+#### Example: Retrying an HTTP Request
+
+```json
+{
+  "type": "retry",
+  "name": "RetryPaymentGateway",
+  "options": {
+    "maxAttempts": 3,
+    "interval": 2,
+    "backoffRate": 3,
+    "errors": ["NetworkError", "ServiceUnavailable", "GatewayTimeout"],
+    "blocking": true,  // Stop flow execution if all retries fail
+    "step": {
+      "type": "httpRequest",
+      "name": "ProcessPayment",
+      "options": {
+        "url": "https://payment.example.com/process",
+        "method": "POST",
+        "body": {
+          "amount": "{{order.total}}",
+          "currency": "{{order.currency}}",
+          "orderId": "{{order.id}}"
+        },
+        "timeout": 5000
+      }
+    }
+  }
+}
+```
+
+#### Observability
+
+The retry middleware enhances observability by providing detailed information about each retry attempt:
+
+1. **Execution Trace**: Shows all retry attempts with their status, timing, and errors
+2. **Internal Context**: Stores comprehensive retry metadata in the `_internal.retryInfo` object
+3. **Middleware Result**: Returns detailed retry statistics in the `meta` property
+
+This helps in debugging and monitoring retry patterns and identifying problematic dependencies.
 - `allowInsecure: true` - Allow insecure connections
 - `ignoreTLSErrors: true` - Ignore all TLS errors
 ```
@@ -833,6 +969,40 @@ You can combine blocking and non-blocking middleware in the same flow:
 ```
 
 ## Creating Custom Middlewares
+
+### Custom Middleware Types
+
+Arpegium JS 1.0.0+ supports registering custom middleware types for better TypeScript integration:
+
+```typescript
+import { registerMiddlewareType } from 'arpegium-js';
+
+// Register a custom middleware type
+registerMiddlewareType('counter', async (ctx, mw, tools) => {
+  const options = mw.options || {};
+  const incrementBy = options.increment || 1;
+  
+  const currentValue = (ctx.globals[mw.name] || 0) + incrementBy;
+  
+  ctx.globals = ctx.globals || {};
+  ctx.globals[mw.name] = currentValue;
+  
+  return { ctx, status: 'success' };
+});
+
+// Now you can use it in your flows with full TypeScript support
+const flow = {
+  steps: [
+    {
+      type: 'counter',
+      name: 'pageViews',
+      options: {
+        increment: 1
+      }
+    }
+  ]
+};
+```
 
 ### Basic Middleware Structure
 

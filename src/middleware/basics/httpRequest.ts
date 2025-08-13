@@ -3,6 +3,24 @@ import { interpolate } from "../../utils/interpolate";
 import fetch from "node-fetch"; // <-- Import estático
 import https from "https";      // <-- Import estático
 
+/**
+ * HTTP Request Middleware
+ * 
+ * Makes HTTP requests to external services and stores the response data.
+ * 
+ * Key features:
+ * - Interpolates URL, headers, and body with context values
+ * - Configurable timeout and SSL settings
+ * - Stores response in globals[name]
+ * - Stores response metadata in globals[name + "-metadata"] including:
+ *   - status: HTTP status code
+ *   - statusText: HTTP status text
+ *   - headers: Response headers
+ *   - url: Final URL used for the request
+ *   - method: HTTP method used
+ *   - requestTimestamp: When the request was made
+ */
+
 export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, span) => {
   const options = mw.options || {};
   if (!options.url) {
@@ -146,27 +164,61 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
     }
   }
 
+  // Configuración de timeout (valor por defecto: 30 segundos, 0 significa sin timeout)
+  const timeoutMs = typeof options.timeout === 'number' ? options.timeout : 30000;
+  
   let response: any;
   try {
-    response = await fetch(interpolatedUrl, fetchOptions);
+    // Si timeout es 0, no aplicamos timeout (infinito)
+    if (timeoutMs === 0) {
+      response = await fetch(interpolatedUrl, fetchOptions);
+    } else {
+      // Implementamos el timeout usando Promise.race
+      const timeoutPromise = new Promise((_, reject) => {
+        const timeoutError = new Error(`Request timeout after ${timeoutMs}ms`);
+        timeoutError.name = 'TimeoutError';
+        setTimeout(() => reject(timeoutError), timeoutMs);
+      });
+      
+      response = await Promise.race([
+        fetch(interpolatedUrl, fetchOptions),
+        timeoutPromise
+      ]);
+    }
   } catch (err: any) {
+    // Mensaje personalizado para timeouts
+    const isTimeout = err?.name === 'TimeoutError';
+    const errorMessage = isTimeout 
+      ? `HTTP request timeout after ${timeoutMs}ms` 
+      : `HTTP request failed: ${(err as Error)?.message || String(err)}`;
+    
     if (tools?.logger) {
       tools.logger.error({
-        message: `HTTP request failed: ${(err as Error)?.message || String(err)}`,
-        request: { url: interpolatedUrl, method: options.method, headers: interpolatedHeaders, body: interpolatedBody },
+        message: errorMessage,
+        request: { 
+          url: interpolatedUrl, 
+          method: options.method, 
+          headers: interpolatedHeaders, 
+          body: interpolatedBody,
+          timeout: timeoutMs,
+          isTimeout
+        },
         event: { headers: ctx.input.headers || {} }
       });
     }
+    
     return {
       ctx,
       status: "failed",
       error: {
-        message: `HTTP request failed: ${(err as Error)?.message || String(err)}`,
+        message: errorMessage,
         requestData: {
           url: interpolatedUrl,
           originalUrl: options.url,
           method: options.method || 'GET',
           headers: interpolatedHeaders,
+          timeout: timeoutMs,
+          isTimeout,
           originalHeaders: options.headers,
           body: interpolatedBody,
           originalBody: options.body,
@@ -235,6 +287,21 @@ export const httpRequestMiddleware = createMiddleware(async (ctx, mw, tools, spa
   if (mw.name) {
     ctx.globals = ctx.globals || {};
     ctx.globals[mw.name] = data;
+    
+    // Guardar la metadata de la respuesta HTTP en una variable global separada
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value: string, key: string) => {
+      responseHeaders[key] = value;
+    });
+    
+    ctx.globals[mw.name + "-metadata"] = {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      url: interpolatedUrl,
+      method: options.method || 'GET',
+      requestTimestamp: new Date().toISOString()
+    };
   }
 
   if (tools?.logger) {

@@ -1,3 +1,5 @@
+export * from './flow-types';
+
 export type MiddlewareContext = {
   input: Record<string, any>;
   globals: Record<string, any>;
@@ -5,6 +7,10 @@ export type MiddlewareContext = {
   executionStatus?: MiddlewareExecutionStatus[];
   executionTrace?: any[];
   nonBlockingErrors?: any[];
+  _internal?: {
+    retryInfo?: Record<string, any>;
+    [key: string]: any;
+  };
 };
 
 export type MiddlewareResult = {
@@ -42,14 +48,22 @@ export interface MiddlewareConfig {
   origin?: string;
   mapping?: any;
   outputVariableName?: string;
+  // Para estructuras de control
+  sequence?: MiddlewareConfig[];
+  parallel?: MiddlewareConfig[];
+  conditional?: {
+    condition?: string;
+    conditions?: string[];
+    if?: string;
+    then?: any;
+    else?: any;
+    branches?: any[];
+  };
   onError?: FlowErrorHandlerConfig;
 }
 
-export interface FlowConfig {
-  name: string;
-  middlewares: MiddlewareConfig[];
-  errorHandler?: FlowErrorHandler | FlowErrorHandlerConfig;
-}
+import { FlowDefinition } from './flow-types';
+export type FlowConfig = FlowDefinition;
 
 export interface FlowErrorHandlerConfig {
   type?: string;
@@ -94,3 +108,4 @@ export interface OrchestratorConfig {
   tracer?: ITracer;
   traceWithObservability?: (name: string, fn: (span?: any) => any, parentSpan?: any) => Promise<any>;
 }
+

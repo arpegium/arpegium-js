@@ -1,6 +1,6 @@
 {
   "name": "arpegium-js",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "A generic, extensible orchestrator framework for creating JSON-defined workflows with middleware-based processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,6 +17,18 @@
     "prepublishOnly": "npm run clean && npm run build",
     "test": "jest",
     "dev": "ts-node src/index.ts"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./flow-types": {
+      "import": "./dist/core/flow-types.js",
+      "require": "./dist/core/flow-types.js",
+      "types": "./dist/core/flow-types.d.ts"
+    }
   },
   "keywords": [
     "orchestrator",
@@ -37,6 +49,7 @@
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
     "jest": "^29.0.0",
+    "nock": "^14.0.10",
     "ts-jest": "^29.0.0",
     "ts-node": "^10.0.0",
     "typescript": "^5.0.0"

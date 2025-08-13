@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-08-13
+
+### Added
+- **HTTP Request Metadata**: Added comprehensive response metadata access
+  - Response metadata stored in `globals[name + "-metadata"]` including:
+    - HTTP status code and status text
+    - Response headers as key-value pairs
+    - Final URL and method used
+    - Request timestamp
+  - Improves debugging and enables advanced flow logic based on HTTP headers
+- **Enhanced Retry Middleware**: Improved error handling and execution tracing 
+  - Better visualization of nested steps in execution traces
+  - Detailed error propagation including HTTP error details
+  - Parent-child relationship tracking for better debugging
+- **Custom Middleware Types**: Added support for registering and using custom middleware types
+  - Extensible type system for domain-specific middleware
+  - TypeScript type safety for custom middleware implementations
+
+### Fixed
+- Fixed issue with retry middleware not showing nested execution steps
+- Fixed error propagation in HTTP request middleware
+- Corrected TypeScript type definitions for middleware extensions
+
 ## [0.3.0] - 2025-08-05
 
 ### Added

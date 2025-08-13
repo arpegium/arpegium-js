@@ -34,16 +34,66 @@ export function buildExecutionTraceString(trace: any[], totalDuration?: number):
       const statusIcon = entry.status === 'success' ? '✓' : entry.status === 'failed' ? '✗' : '⏳';
       const duration = entry.durationMs || entry.duration || 0;
       
-      if (entry.type === 'middleware') {
-        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`;
+      // Información especial para middleware de retry
+      let additionalInfo = '';
+      if (entry.type === 'retry' || (entry.meta?.retryInfo && Object.keys(entry.meta.retryInfo).length > 0)) {
+        const retryInfo = entry.meta?.retryInfo || entry._internal?.retryInfo?.[entry.name];
+        const attempts = retryInfo?.attempts || [];
+        
+        // Siempre mostrar información sobre retries, incluso si solo hubo un intento
+        additionalInfo = `\n${indent}|  [Retry: ${attempts.length}/${retryInfo?.maxAttempts || 'N/A'} attempts]`;
+        
+        // Añadir detalles del tipo de paso que se está reintentando
+        const stepType = attempts[0]?.stepType || 'unknown';
+        additionalInfo += ` Step type: ${stepType}`;
+        
+        // Añadir detalles de cada intento
+        attempts.forEach((attempt: any, idx: number) => {
+          const attemptIcon = attempt.status === 'success' ? '✓' : 
+                             attempt.status === 'retrying' ? '↻' : 
+                             attempt.status === 'error' ? '⚠' : '✗';
+                             
+          const duration = attempt.durationMs ? `${attempt.durationMs}ms` : '';
+          
+          let attemptDetails = '';
+          if (attempt.status === 'retrying') {
+            attemptDetails = `waited ${attempt.waitTime?.toFixed(2)}s`;
+          }
+          
+          additionalInfo += `\n${indent}|  ${attemptIcon} Attempt ${attempt.attempt}: ${attempt.status} ${duration} ${attemptDetails}`;
+          
+          // Añadir información del error si hay uno
+          if (attempt.status !== 'success' && attempt.error) {
+            const errorDetails = attempt.errorType ? 
+                               `${attempt.errorType}${attempt.statusCode ? ' [' + attempt.statusCode + ']' : ''}` : '';
+            additionalInfo += ` (${errorDetails}: ${attempt.error})`;
+          }
+          
+          // Añadir información si se alcanzó el máximo de intentos
+          if (attempt.maxAttemptsReached) {
+            additionalInfo += ` (Max attempts reached)`;
+          }
+        });
+        
+        // Añadir estadísticas si están disponibles
+        if (entry.meta?.retryStats) {
+          const stats = entry.meta.retryStats;
+          additionalInfo += `\n${indent}|  Total duration: ${stats.totalDurationMs}ms, Avg attempt: ${stats.avgAttemptDurationMs}ms`;
+        }
+      }
+      
+      if (entry.type === 'retry') {
+        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)${additionalInfo}`;
+      } else if (entry.type === 'middleware') {
+        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)${additionalInfo}`;
       } else if (entry.type === 'parallel') {
-        return `${indent}|| parallel (${duration}ms)`;
+        return `${indent}|| parallel (${duration}ms)${additionalInfo}`;
       } else if (entry.type === 'sequence') {
-        return `${indent}>> sequence (${duration}ms)`;
+        return `${indent}>> sequence (${duration}ms)${additionalInfo}`;
       } else if (entry.type === 'conditional') {
-        return `${indent}?? conditional (${duration}ms)`;
+        return `${indent}?? conditional (${duration}ms)${additionalInfo}`;
       } else {
-        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)`;
+        return `${indent}${entry.name} [${entry.type}] (${statusIcon}) (${duration}ms)${additionalInfo}`;
       }
     };
     
@@ -130,6 +180,7 @@ export interface ExecutionTraceEntry {
   endedAt: number;
   asyncSend: boolean;
   error?: string;
+  meta?: Record<string, any>; // Para metadatos adicionales como información de reintentos
 }
 
 export class ExecutionTrace {

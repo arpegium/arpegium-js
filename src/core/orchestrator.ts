@@ -16,7 +16,8 @@ import {
   runSingleMiddleware,
   runParallelMiddlewares,
   runSequenceMiddlewares,
-  runConditionalMiddleware
+  runConditionalMiddleware,
+  createExecuteStepFunction
 } from './flow-runners';
 
 export class Orchestrator {
@@ -36,7 +37,14 @@ export class Orchestrator {
     this.traceWithObservabilityFn = traceFn;
   }
 
-  registerMiddleware(type: string, middleware: any) {
+  /**
+   * Registra un middleware personalizado en el orquestador.
+   * 
+   * @template T - El tipo de middleware que se está registrando
+   * @param type - El nombre del tipo de middleware
+   * @param middleware - La función del middleware
+   */
+  registerMiddleware<T extends string>(type: T, middleware: any) {
     this.middlewares.set(type, middleware);
   }
 
@@ -61,6 +69,17 @@ export class Orchestrator {
     // Only initialize executionTrace if no _executionTrace system exists
     if (!ctx.executionTrace && !(ctx as any)._executionTrace) {
       ctx.executionTrace = [];
+    }
+    
+    // Create executeStep function and add it to tools
+    // This allows middlewares like retry to execute other middlewares
+    if (!tools.executeStep) {
+      tools.executeStep = createExecuteStepFunction(
+        this.middlewares,
+        tools,
+        this.traceWithObservabilityFn,
+        flow.name
+      );
     }
 
     try {
